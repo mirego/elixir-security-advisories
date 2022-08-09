@@ -1,7 +1,7 @@
 ---
 cve: GHSA-5v5w-44w6-q5hv
 description: Erlang Solutions MongooseIM through 1.3.1 rev. 2 does not properly restrict the processing of compressed XML elements, which allows remote attackers to cause a denial of service (resource consumption) via a crafted XMPP stream, aka an "xmppbomb" attack.
-disclosure_date: 2022-05-17T04:47:27Z
+disclosure_date: 2022-05-17
 first_patched_versions:
   - 1.3.2
 id: GHSA-5v5w-44w6-q5hv

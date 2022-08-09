@@ -12,7 +12,7 @@ description: |-
   ### References
   https://github.com/danschultzer/pow/commit/578ffd3d8bb8e8a26077b644222186b108da474f  
   https://www.owasp.org/index.php/Session_fixation
-disclosure_date: 2022-04-12T21:27:49Z
+disclosure_date: 2022-04-12
 first_patched_versions:
   - 1.0.16
 id: GHSA-v2wf-c3j6-wpvw

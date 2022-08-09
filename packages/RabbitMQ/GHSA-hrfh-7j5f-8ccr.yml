@@ -1,7 +1,7 @@
 ---
 cve: GHSA-hrfh-7j5f-8ccr
 description: Pivotal RabbitMQ, versions 3.7.x prior to 3.7.21 and 3.8.x prior to 3.8.1, and RabbitMQ for Pivotal Platform, 1.16.x versions prior to 1.16.7 and 1.17.x versions prior to 1.17.4, contain a web management plugin that is vulnerable to a denial of service attack. The "X-Reason" HTTP Header can be leveraged to insert a malicious Erlang format string that will expand and consume the heap, resulting in the server crashing.
-disclosure_date: 2022-05-24T17:01:50Z
+disclosure_date: 2022-05-24
 first_patched_versions:
   - 1.17.4
   - 1.16.7

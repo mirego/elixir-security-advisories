@@ -7,7 +7,7 @@ description: |-
     secret key as well as your signing/encryption salts. We recommend users to
     change their secret key base and salts if they suspect they have been leaked,
     regardless of this vulnerability.
-disclosure_date: 2022-04-12T21:23:43Z
+disclosure_date: 2022-04-12
 first_patched_versions:
   - 1.3.2
   - 1.2.3

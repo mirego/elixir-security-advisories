@@ -15,7 +15,7 @@ description: |-
     http://localhost:4000/?redirect=/\nexample.com
     Not all browsers are affected, but latest Chrome and Firefox will issue a get
     request for example.com and successfully redirect externally
-disclosure_date: 2022-04-12T21:16:09Z
+disclosure_date: 2022-04-12
 first_patched_versions:
   - 1.2.3
   - 1.1.8

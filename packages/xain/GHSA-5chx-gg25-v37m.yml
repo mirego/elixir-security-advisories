@@ -6,7 +6,7 @@ description: |-
     ```
     http://host/ressources?order=%27><script>alert(1);</script>
     ```
-disclosure_date: 2022-04-12T21:17:38Z
+disclosure_date: 2022-04-12
 first_patched_versions:
   - 0.6.2
 id: GHSA-5chx-gg25-v37m

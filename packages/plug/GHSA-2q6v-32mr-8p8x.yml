@@ -8,7 +8,7 @@ description: |
     serve those uploaded files locally with Plug.Static to upgrade immediately
     or include the fix below. If uploaded files are rather stored and served
     from S3 or any other cloud storage, you are not affected.
-disclosure_date: 2022-04-12T21:20:20Z
+disclosure_date: 2022-04-12
 first_patched_versions:
   - 1.3.2
   - 1.2.3

@@ -1,7 +1,7 @@
 ---
 cve: GHSA-h3gh-978r-747w
 description: puppetlabs-rabbitmq 3.0 through 4.1 stores the RabbitMQ Erlang cookie value in the facts of a node, which allows local users to obtain sensitive information as demonstrated by using Facter.
-disclosure_date: 2022-05-14T00:56:46Z
+disclosure_date: 2022-05-14
 first_patched_versions:
   - '5.0'
 id: GHSA-h3gh-978r-747w
