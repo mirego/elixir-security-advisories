@@ -38,7 +38,8 @@ defmodule ElixirSecurityAdvisories.Repo do
   """
 
   def all(nodes \\ [], after_cursor \\ nil) do
-    post("/graphql", %{query: @body, variables: %{after: after_cursor}})
+    "/graphql"
+    |> post(%{query: @body, variables: %{after: after_cursor}})
     |> case do
       {:ok,
        %Tesla.Env{

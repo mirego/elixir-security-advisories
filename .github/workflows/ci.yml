@@ -1,14 +1,11 @@
-name: CD
-on:
-  push:
-    branches:
-      - master
-  schedule:
-    - cron: "0 */6 * * *"
+name: CI
+
+on: [push, pull_request]
 
 jobs:
-  cd:
+  ci:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v2
 
@@ -19,11 +16,8 @@ jobs:
 
       - run: make dependencies
 
+      - run: make lint
+
       - run: make build
         env:
           GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: EndBug/add-and-commit@v9
-        with:
-          message: Update advisories from GitHub Advisory Database
-          default_author: github_actions
