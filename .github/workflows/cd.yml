@@ -14,6 +14,8 @@ jobs:
           elixir-version: 13.4
 
       - run: mix run -e 'ElixirSecurityAdvisories.Dump.dump(ElixirSecurityAdvisories.Repo.advisories())'
+        env:
+          GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: EndBug/add-and-commit@v9
         with:
