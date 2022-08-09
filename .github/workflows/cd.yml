@@ -11,7 +11,7 @@ jobs:
       - uses: erlef/setup-beam@v1
         with:
           otp-version: 25.0
-          elixir-version: 13.4
+          elixir-version: 1.13
 
       - run: mix run -e 'ElixirSecurityAdvisories.Dump.dump(ElixirSecurityAdvisories.Repo.advisories())'
         env:
