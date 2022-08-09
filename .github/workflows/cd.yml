@@ -13,6 +13,8 @@ jobs:
           otp-version: 25.0
           elixir-version: 1.13
 
+      - run: mix deps.get
+
       - run: mix run -e 'ElixirSecurityAdvisories.Dump.dump(ElixirSecurityAdvisories.Repo.advisories())'
         env:
           GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
