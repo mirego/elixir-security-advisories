@@ -1,6 +1,9 @@
-# Elixir Security Advisories
-
-[![](https://github.com/mirego/elixir-security-advisories/actions/workflows/cd.yml/badge.svg)](https://github.com/mirego/elixir-security-advisories/actions/workflows/cd.yml)
+<div align="center">
+  <img src="https://user-images.githubusercontent.com/11348/183662131-4213af19-2d9e-4895-bf4b-fea05fae11c3.png" width="1191" />
+  <br /><br />
+  <a href="https://github.com/mirego/elixir-security-advisories/actions/workflows/ci.yml"><img src="https://github.com/mirego/elixir-security-advisories/actions/workflows/ci.yml/badge.svg?branch=master&event=push" /></a>
+  <a href="https://github.com/mirego/elixir-security-advisories/actions/workflows/cd.yml"><img src="https://github.com/mirego/elixir-security-advisories/actions/workflows/cd.yml/badge.svg" /></a><br /><br />
+</div>
 
 This repository is a dump of all Elixir/Erlang security advisories inside [GitHub Advisory Database](https://github.com/advisories).
 
