@@ -1,8 +1,10 @@
 defmodule ElixirSecurityAdvisories.Dump do
+  require Logger
+
   @directory "packages"
 
   def dump({:error, message}) do
-    IO.puts(message)
+    Logger.error(message)
     exit({:shutdown, 1})
   end
 
