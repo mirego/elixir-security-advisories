@@ -14,7 +14,6 @@ defmodule ElixirSecurityAdvisories.Dump do
       id: advisory["ghsaId"],
       package: package["name"],
       disclosure_date: advisory_disclosure_date(advisory["publishedAt"]),
-      cve: advisory["ghsaId"],
       link: advisory["permalink"],
       title: advisory["summary"],
       description: advisory["description"],
