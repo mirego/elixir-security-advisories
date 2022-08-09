@@ -19,6 +19,7 @@ defmodule ElixirSecurityAdvisories.MixProject do
 
   defp deps do
     [
+      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:jason, "~> 1.3.0"},
       {:tesla, "~> 1.4.0"},
       {:ymlr, "~> 3.0"}
