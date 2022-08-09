@@ -1,7 +1,12 @@
 defmodule ElixirSecurityAdvisories.Dump do
   @directory "packages"
 
-  def dump(nodes) do
+  def dump({:error, message}) do
+    IO.puts(message)
+    exit({:shutdown, 1})
+  end
+
+  def dump({:ok, nodes}) do
     nodes
     |> Enum.group_by(& &1["advisory"]["ghsaId"])
     |> Enum.map(&map_vulnerabilities_to_advisories/1)
