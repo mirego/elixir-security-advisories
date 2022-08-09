@@ -19,7 +19,7 @@ jobs:
 
       - run: mix deps.get
 
-      - run: mix run -e 'ElixirSecurityAdvisories.Dump.dump(ElixirSecurityAdvisories.Repo.advisories())'
+      - run: mix run -e 'ElixirSecurityAdvisories.dump(ElixirSecurityAdvisories.Repo.all())'
         env:
           GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
