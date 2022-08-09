@@ -1,5 +1,7 @@
 # Elixir Security Advisories
 
+[![](https://github.com/mirego/elixir-security-advisories/actions/workflows/cd.yml/badge.svg)](https://github.com/mirego/elixir-security-advisories/actions/workflows/cd.yml)
+
 This repository is a dump of all Elixir/Erlang security advisories inside [GitHub Advisory Database](https://github.com/advisories).
 
 This repository intends to be used as a replacement for [dependabot/elixir-security-advisories](https://github.com/dependabot/elixir-security-advisories) since it is no longer maintained, as of July 2022.
