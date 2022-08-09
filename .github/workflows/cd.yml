@@ -22,5 +22,4 @@ jobs:
       - uses: EndBug/add-and-commit@v9
         with:
           message: Update advisories from GitHub Advisory Database
-          committer_name: GitHub Actions
-          committer_email: actions@github.com
+          default_author: github_actions
