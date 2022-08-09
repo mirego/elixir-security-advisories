@@ -1,5 +1,4 @@
 ---
-cve: GHSA-qpmc-wprv-x746
 description: The SweetXml (aka sweet_xml) package through 0.6.6 for Erlang and Elixir allows attackers to cause a denial of service (resource consumption) via an XML entity expansion attack with an inline DTD.
 disclosure_date: 2022-04-12
 first_patched_versions:

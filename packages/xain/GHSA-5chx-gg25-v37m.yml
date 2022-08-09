@@ -1,5 +1,4 @@
 ---
-cve: GHSA-5chx-gg25-v37m
 description: |-
   XSS is possible via the use of the order query parameter. An example request
     would look like:

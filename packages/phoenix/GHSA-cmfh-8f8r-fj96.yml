@@ -1,5 +1,4 @@
 ---
-cve: GHSA-cmfh-8f8r-fj96
 description: |-
   The Phoenix team designed Phoenix.Controller.redirect/2 to protect against
     redirects allowing user input to redirect to an external URL where your

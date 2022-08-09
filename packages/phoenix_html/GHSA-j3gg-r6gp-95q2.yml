@@ -1,5 +1,4 @@
 ---
-cve: GHSA-j3gg-r6gp-95q2
 description: The `class` attribute was not protected against XSS attacks when using HEEx.
 disclosure_date: 2022-04-12
 first_patched_versions:

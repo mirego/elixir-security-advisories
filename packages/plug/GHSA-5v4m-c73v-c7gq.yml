@@ -1,5 +1,4 @@
 ---
-cve: GHSA-5v4m-c73v-c7gq
 description: |-
   The default serialization used by Plug session may result in code execution
     in certain situations. Keep in mind, however, the session cookie is signed

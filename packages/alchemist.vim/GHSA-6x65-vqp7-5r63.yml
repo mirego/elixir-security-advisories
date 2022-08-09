@@ -1,5 +1,4 @@
 ---
-cve: GHSA-6x65-vqp7-5r63
 description: Elixir's vim plugin, alchemist.vim is vulnerable to remote code execution in the bundled alchemist-server. A malicious website can execute requests against an ephemeral port on localhost that are then evaluated as elixir code.
 disclosure_date: 2022-05-13
 first_patched_versions:

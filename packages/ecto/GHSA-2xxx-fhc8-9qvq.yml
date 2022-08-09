@@ -1,5 +1,4 @@
 ---
-cve: GHSA-2xxx-fhc8-9qvq
 description: Ecto will not raise on queries with non-explicit nil comparisons (ie if they aren't checked with `is_nil`).
 disclosure_date: 2022-04-12
 first_patched_versions:

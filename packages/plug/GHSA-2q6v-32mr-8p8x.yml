@@ -1,5 +1,4 @@
 ---
-cve: GHSA-2q6v-32mr-8p8x
 description: |
   Plug.Static is used for serving static assets, and is vulnerable to null
     byte injection. If file upload functionality is provided, this can allow

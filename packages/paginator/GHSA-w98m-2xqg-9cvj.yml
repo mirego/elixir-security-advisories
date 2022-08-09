@@ -1,5 +1,4 @@
 ---
-cve: GHSA-w98m-2xqg-9cvj
 description: |-
   There is a vulnerability in Paginator which makes it susceptible to Remote Code Execution (RCE) attacks via input parameters to the `paginate()` function.
   
