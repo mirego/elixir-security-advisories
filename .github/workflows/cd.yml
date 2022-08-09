@@ -1,0 +1,22 @@
+name: CD
+on:
+  workflow_dispatch:
+
+jobs:
+  cd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: 25.0
+          elixir-version: 13.4
+
+      - run: mix run -e 'ElixirSecurityAdvisories.Dump.dump(ElixirSecurityAdvisories.Repo.advisories())'
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Update advisories from GitHub Advisory Database
+          committer_name: GitHub Actions
+          committer_email: actions@github.com

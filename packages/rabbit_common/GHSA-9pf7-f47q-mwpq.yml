@@ -1,0 +1,14 @@
+---
+cve: GHSA-9pf7-f47q-mwpq
+description: Pivotal RabbitMQ, 3.7 versions prior to v3.7.20 and 3.8 version prior to v3.8.1, and RabbitMQ for PCF, 1.16.x versions prior to 1.16.7 and 1.17.x versions prior to 1.17.4, contain two endpoints, federation and shovel, which do not properly sanitize user input. A remote authenticated malicious user with administrative access could craft a cross site scripting attack via the vhost or node name fields that could grant access to virtual hosts and policy management information.
+disclosure_date: 2022-05-24T17:01:50Z
+first_patched_versions:
+  - 3.8.1
+  - 3.7.20
+id: GHSA-9pf7-f47q-mwpq
+link: https://github.com/advisories/GHSA-9pf7-f47q-mwpq
+package: rabbit_common
+title: Cross-site Scripting in RabbitMQ
+vulnerable_version_ranges:
+  - '>= 3.8.0, < 3.8.1'
+  - '>= 3.7.0, < 3.7.20'

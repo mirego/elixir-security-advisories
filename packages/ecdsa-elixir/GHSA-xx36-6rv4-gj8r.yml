@@ -1,0 +1,12 @@
+---
+cve: GHSA-xx36-6rv4-gj8r
+description: The verify function in the Stark Bank Elixir ECDSA library (ecdsa-elixir) 1.0.0 fails to check that the signature is non-zero, which allows attackers to forge signatures on arbitrary messages.
+disclosure_date: 2022-05-24T19:20:12Z
+first_patched_versions:
+  - 1.0.1
+id: GHSA-xx36-6rv4-gj8r
+link: https://github.com/advisories/GHSA-xx36-6rv4-gj8r
+package: ecdsa-elixir
+title: ecdsa-elixir fails to check signatures, vulnerable to message forging
+vulnerable_version_ranges:
+  - = 1.0.0

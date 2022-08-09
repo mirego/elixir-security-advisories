@@ -1,0 +1,23 @@
+---
+cve: GHSA-w98m-2xqg-9cvj
+description: |-
+  There is a vulnerability in Paginator which makes it susceptible to Remote Code Execution (RCE) attacks via input parameters to the `paginate()` function.
+  
+  ### Impact
+  There is a vulnerability in Paginator which makes it susceptible to Remote Code Execution (RCE) attacks via input parameters to the `paginate()` function. This will potentially affect all current users of `Paginator` prior to version >= 1.0.0.
+  
+  ### Patches
+  The vulnerability has been patched in version 1.0.0 and all users should upgrade to this version immediately. Note that this patched version uses a dependency that requires an Elixir version >=1.5.
+  
+  ### Credits
+  
+  Thank you to Peter Stöckli.
+disclosure_date: 2022-04-12T19:36:39Z
+first_patched_versions:
+  - 1.0.0
+id: GHSA-w98m-2xqg-9cvj
+link: https://github.com/advisories/GHSA-w98m-2xqg-9cvj
+package: paginator
+title: Remote Code Execution in paginator
+vulnerable_version_ranges:
+  - < 1.0.0

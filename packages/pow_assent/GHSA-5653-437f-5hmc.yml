@@ -1,0 +1,12 @@
+---
+cve: GHSA-5653-437f-5hmc
+description: The use of `String.to_atom/1` in PowAssent is susceptible to denial of service attacks. In `PowAssent.Phoenix.AuthorizationController` a value is fetched from the user provided params, and `String.to_atom/1` is used to convert the binary value to an atom so it can be used to fetch the provider configuration value. This is unsafe as it is user provided data, and can be used to fill up the whole atom table of ~1M which will cause the app to crash.
+disclosure_date: 2022-04-12T21:29:30Z
+first_patched_versions:
+  - 0.4.4
+id: GHSA-5653-437f-5hmc
+link: https://github.com/advisories/GHSA-5653-437f-5hmc
+package: pow_assent
+title: Denial of service
+vulnerable_version_ranges:
+  - < 0.4.4
