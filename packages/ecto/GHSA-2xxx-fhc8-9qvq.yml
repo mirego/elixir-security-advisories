@@ -6,6 +6,7 @@ first_patched_versions:
 id: GHSA-2xxx-fhc8-9qvq
 link: https://github.com/advisories/GHSA-2xxx-fhc8-9qvq
 package: ecto
+severity: moderate
 title: Missing `is_nil` requirement
 vulnerable_version_ranges:
   - = 2.2.0

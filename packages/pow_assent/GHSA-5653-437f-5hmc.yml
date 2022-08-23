@@ -6,6 +6,7 @@ first_patched_versions:
 id: GHSA-5653-437f-5hmc
 link: https://github.com/advisories/GHSA-5653-437f-5hmc
 package: pow_assent
+severity: moderate
 title: Denial of service
 vulnerable_version_ranges:
   - < 0.4.4

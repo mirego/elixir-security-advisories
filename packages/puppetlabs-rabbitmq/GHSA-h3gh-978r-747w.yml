@@ -6,6 +6,7 @@ first_patched_versions:
 id: GHSA-h3gh-978r-747w
 link: https://github.com/advisories/GHSA-h3gh-978r-747w
 package: puppetlabs-rabbitmq
+severity: low
 title: puppetlabs-rabbitmq allows local users to obtain sensitive information
 vulnerable_version_ranges:
   - '>= 3.0, <= 4.1'

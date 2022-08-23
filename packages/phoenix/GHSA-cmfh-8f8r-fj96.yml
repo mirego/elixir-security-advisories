@@ -22,6 +22,7 @@ first_patched_versions:
 id: GHSA-cmfh-8f8r-fj96
 link: https://github.com/advisories/GHSA-cmfh-8f8r-fj96
 package: phoenix
+severity: moderate
 title: Arbitrary URL Redirect
 vulnerable_version_ranges:
   - '>= 1.2.0, < 1.2.3'

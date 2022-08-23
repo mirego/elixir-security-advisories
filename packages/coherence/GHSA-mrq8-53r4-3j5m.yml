@@ -6,6 +6,7 @@ first_patched_versions:
 id: GHSA-mrq8-53r4-3j5m
 link: https://github.com/advisories/GHSA-mrq8-53r4-3j5m
 package: coherence
+severity: moderate
 title: Permissive parameters and privilege escalation
 vulnerable_version_ranges:
   - < 0.5.2

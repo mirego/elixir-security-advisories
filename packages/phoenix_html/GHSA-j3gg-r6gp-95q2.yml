@@ -6,6 +6,7 @@ first_patched_versions:
 id: GHSA-j3gg-r6gp-95q2
 link: https://github.com/advisories/GHSA-j3gg-r6gp-95q2
 package: phoenix_html
+severity: moderate
 title: XSS in HEEx class attributes
 vulnerable_version_ranges:
   - < 3.0.4

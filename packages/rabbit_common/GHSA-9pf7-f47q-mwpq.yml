@@ -7,6 +7,7 @@ first_patched_versions:
 id: GHSA-9pf7-f47q-mwpq
 link: https://github.com/advisories/GHSA-9pf7-f47q-mwpq
 package: rabbit_common
+severity: low
 title: Cross-site Scripting in RabbitMQ
 vulnerable_version_ranges:
   - '>= 3.8.0, < 3.8.1'

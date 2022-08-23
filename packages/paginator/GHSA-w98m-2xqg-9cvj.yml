@@ -17,6 +17,7 @@ first_patched_versions:
 id: GHSA-w98m-2xqg-9cvj
 link: https://github.com/advisories/GHSA-w98m-2xqg-9cvj
 package: paginator
+severity: critical
 title: Remote Code Execution in paginator
 vulnerable_version_ranges:
   - < 1.0.0

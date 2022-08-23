@@ -17,6 +17,7 @@ first_patched_versions:
 id: GHSA-v2wf-c3j6-wpvw
 link: https://github.com/advisories/GHSA-v2wf-c3j6-wpvw
 package: pow
+severity: moderate
 title: Session fixation
 vulnerable_version_ranges:
   - < 1.0.16

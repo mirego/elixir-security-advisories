@@ -15,6 +15,7 @@ first_patched_versions:
 id: GHSA-5v4m-c73v-c7gq
 link: https://github.com/advisories/GHSA-5v4m-c73v-c7gq
 package: plug
+severity: high
 title: Arbitrary Code Execution in Cookie Serialization
 vulnerable_version_ranges:
   - '>= 1.3.0, < 1.3.2'

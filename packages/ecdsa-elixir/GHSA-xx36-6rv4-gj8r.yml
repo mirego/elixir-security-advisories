@@ -6,6 +6,7 @@ first_patched_versions:
 id: GHSA-xx36-6rv4-gj8r
 link: https://github.com/advisories/GHSA-xx36-6rv4-gj8r
 package: ecdsa-elixir
+severity: critical
 title: ecdsa-elixir fails to check signatures, vulnerable to message forging
 vulnerable_version_ranges:
   - = 1.0.0

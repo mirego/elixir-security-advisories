@@ -11,6 +11,7 @@ first_patched_versions:
 id: GHSA-5chx-gg25-v37m
 link: https://github.com/advisories/GHSA-5chx-gg25-v37m
 package: xain
+severity: moderate
 title: Cross-site Scripting in xain
 vulnerable_version_ranges:
   - < 0.6.2

@@ -6,6 +6,7 @@ first_patched_versions:
 id: GHSA-6x65-vqp7-5r63
 link: https://github.com/advisories/GHSA-6x65-vqp7-5r63
 package: alchemist.vim
+severity: critical
 title: alchemist.vim vulnerable to remote code execution
 vulnerable_version_ranges:
   - <= 1.3.1

@@ -9,6 +9,7 @@ first_patched_versions:
 id: GHSA-hrfh-7j5f-8ccr
 link: https://github.com/advisories/GHSA-hrfh-7j5f-8ccr
 package: RabbitMQ
+severity: high
 title: Pivotal RabbitMQ is vulnerable to a denial of service attack
 vulnerable_version_ranges:
   - '>= 1.17.0, < 1.17.4'
