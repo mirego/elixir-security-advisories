@@ -32,6 +32,7 @@ defmodule ElixirSecurityAdvisories.Repo do
           summary
           publishedAt
         }
+        severity
       }
     }
   }

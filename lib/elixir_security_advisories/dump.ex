@@ -16,7 +16,7 @@ defmodule ElixirSecurityAdvisories.Dump do
     |> Enum.map(&map_advisory_to_file/1)
   end
 
-  defp map_vulnerabilities_to_advisories({_, vulnerabilities = [%{"advisory" => advisory, "package" => package} | _]}) do
+  defp map_vulnerabilities_to_advisories({_, vulnerabilities = [%{"advisory" => advisory, "package" => package, "severity" => severity} | _]}) do
     %{
       id: advisory["ghsaId"],
       package: package["name"],
@@ -25,7 +25,8 @@ defmodule ElixirSecurityAdvisories.Dump do
       title: advisory["summary"],
       description: advisory["description"],
       first_patched_versions: Enum.map(vulnerabilities, & &1["firstPatchedVersion"]["identifier"]),
-      vulnerable_version_ranges: Enum.map(vulnerabilities, & &1["vulnerableVersionRange"])
+      vulnerable_version_ranges: Enum.map(vulnerabilities, & &1["vulnerableVersionRange"]),
+      severity: String.downcase(severity)
     }
   end
 
