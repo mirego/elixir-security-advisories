@@ -1,0 +1,12 @@
+---
+description: 'socket/transport.ex in Phoenix before 1.6.14 mishandles check_origin wildcarding. NOTE: LiveView applications are unaffected by default because of the presence of a LiveView CSRF token.'
+disclosure_date: 2022-10-17
+first_patched_versions:
+  - 1.6.14
+id: GHSA-p8f7-22gq-m7j9
+link: https://github.com/advisories/GHSA-p8f7-22gq-m7j9
+package: phoenix
+severity: moderate
+title: Phoenix before 1.6.14 mishandles check_origin wildcarding
+vulnerable_version_ranges:
+  - < 1.6.14
