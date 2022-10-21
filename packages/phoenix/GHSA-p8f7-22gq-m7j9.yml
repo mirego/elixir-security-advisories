@@ -6,7 +6,7 @@ first_patched_versions:
 id: GHSA-p8f7-22gq-m7j9
 link: https://github.com/advisories/GHSA-p8f7-22gq-m7j9
 package: phoenix
-severity: moderate
+severity: high
 title: Phoenix before 1.6.14 mishandles check_origin wildcarding
 vulnerable_version_ranges:
   - < 1.6.14
