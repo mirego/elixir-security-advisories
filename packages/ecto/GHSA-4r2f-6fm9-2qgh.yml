@@ -6,7 +6,7 @@ first_patched_versions:
 id: GHSA-4r2f-6fm9-2qgh
 link: https://github.com/advisories/GHSA-4r2f-6fm9-2qgh
 package: ecto
-severity: moderate
+severity: critical
 title: Ecto lacks a protection mechanism
 vulnerable_version_ranges:
   - = 2.2.0
