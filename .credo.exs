@@ -4,7 +4,7 @@
       name: "default",
       files: %{
         included: ["*.exs", "lib/"],
-        excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
+        excluded: [~r"/_build/", ~r"/deps/"]
       },
       plugins: [],
       requires: [],
