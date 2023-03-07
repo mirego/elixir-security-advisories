@@ -3,7 +3,7 @@
     %{
       name: "default",
       files: %{
-        included: ["*.exs", "lib/"],
+        included: ["*.exs", "lib/", "config/"],
         excluded: [~r"/_build/", ~r"/deps/"]
       },
       plugins: [],
