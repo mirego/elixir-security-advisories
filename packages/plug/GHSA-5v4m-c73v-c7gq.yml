@@ -1,0 +1,24 @@
+---
+description: |-
+  The default serialization used by Plug session may result in code execution
+    in certain situations. Keep in mind, however, the session cookie is signed
+    and this attack can only be exploited if the attacker has access to your
+    secret key as well as your signing/encryption salts. We recommend users to
+    change their secret key base and salts if they suspect they have been leaked,
+    regardless of this vulnerability.
+disclosure_date: 2022-04-12
+first_patched_versions:
+  - 1.3.2
+  - 1.2.3
+  - 1.1.7
+  - 1.0.4
+id: GHSA-5v4m-c73v-c7gq
+link: https://github.com/advisories/GHSA-5v4m-c73v-c7gq
+package: plug
+severity: high
+title: Arbitrary Code Execution in Cookie Serialization
+vulnerable_version_ranges:
+  - '>= 1.3.0, < 1.3.2'
+  - '>= 1.2.0, < 1.2.3'
+  - '>= 1.1.0, < 1.1.7'
+  - < 1.0.4

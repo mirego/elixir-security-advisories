@@ -1,0 +1,12 @@
+---
+description: An issue was discovered in Steve Pallen Coherence before 0.5.2 that is similar to a Mass Assignment vulnerability. In particular, "registration" endpoints (e.g., creating, editing, updating) allow users to update any coherence_fields data. For example, users can automatically confirm their accounts by sending the confirmed_at parameter with their registration request.
+disclosure_date: 2022-02-10
+first_patched_versions:
+  - 0.5.2
+id: GHSA-mrq8-53r4-3j5m
+link: https://github.com/advisories/GHSA-mrq8-53r4-3j5m
+package: coherence
+severity: moderate
+title: Permissive parameters and privilege escalation
+vulnerable_version_ranges:
+  - < 0.5.2
