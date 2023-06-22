@@ -1,0 +1,17 @@
+---
+description: |
+  On Windows, it is possible to open a `livebook://` link from a browser which opens Livebook Desktop and triggers arbitrary code execution on victim's machine.
+  
+  Any user using Livebook Desktop on Windows is potentially vulnerable to arbitrary code execution when they expect Livebook to be opened from browser.
+disclosure_date: 2023-06-21
+first_patched_versions:
+  - 0.9.3
+  - 0.8.2
+id: GHSA-564w-97r7-c6p9
+link: https://github.com/advisories/GHSA-564w-97r7-c6p9
+package: livebook
+severity: high
+title: Livebook Desktop's protocol handler can be exploited to execute arbitrary command on Windows
+vulnerable_version_ranges:
+  - '>= 0.9.0, < 0.9.3'
+  - '>= 0.8.0, < 0.8.2'
