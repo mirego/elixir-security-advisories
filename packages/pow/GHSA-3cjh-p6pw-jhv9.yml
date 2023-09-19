@@ -1,0 +1,31 @@
+---
+description: |
+  Use of `Pow.Store.Backend.MnesiaCache` is susceptible to session hijacking as expired keys are not being invalidated correctly on startup. A cache key may become expired when all `Pow.Store.Backend.MnesiaCache` instances have been shut down for a period that is longer than the keys' remaining TTL and the expired key won't be invalidated on startups.
+  
+  ### Workarounds
+  
+  The expired keys, including all expired sessions, can be manually invalidated by running:
+  
+  ```elixir
+  :mnesia.sync_transaction(fn ->
+    Enum.each(:mnesia.dirty_select(Pow.Store.Backend.MnesiaCache, [{{Pow.Store.Backend.MnesiaCache, :_, :_}, [], [:"$_"]}]), fn {_, key,  {_value, expire}} ->
+      ttl = expire - :os.system_time(:millisecond)
+      if ttl < 0, do: :mnesia.delete({Pow.Store.Backend.MnesiaCache, key})
+    end)
+  end)
+  ```
+  
+  ### References
+  https://github.com/pow-auth/pow/commit/15dc525be03c466daa5d2119ca7acdec7b24ed17
+  https://github.com/pow-auth/pow/issues/713
+  https://github.com/pow-auth/pow/pull/714
+disclosure_date: 2023-09-19
+first_patched_versions:
+  - 1.0.34
+id: GHSA-3cjh-p6pw-jhv9
+link: https://github.com/advisories/GHSA-3cjh-p6pw-jhv9
+package: pow
+severity: moderate
+title: Pow Mnesia cache doesn't invalidate all expired keys on startup
+vulnerable_version_ranges:
+  - '>= 1.0.14, < 1.0.34'
