@@ -1,5 +1,53 @@
 ---
-description: The verify function in the Stark Bank Elixir ECDSA library (ecdsa-elixir) 1.0.0 fails to check that the signature is non-zero, which allows attackers to forge signatures on arbitrary messages.
+description: |-
+  ### Summary
+  Stark Bank is a financial technology company that provides services to simplify and automate digital banking, by providing APIs to perform operations such as payments and transfers. In addition, Stark Bank maintains a number of cryptographic libraries to perform cryptographic signing and verification. These popular libraries are meant to be used to integrate with the Stark Bank ecosystem, but are also accessible on popular package manager platforms in order to be used by other projects. The node package manager reports around 16k weekly downloads for the [ecdsa-node](https://www.npmjs.com/package/starkbank-ecdsa ) implementation while the Python implementation boasts over [7.3M downloads in the last 90 days on PyPI](https://package.wiki/starkbank-ecdsa). A number of these libraries suffer from a vulnerability in the signature verification functions, allowing attackers to forge signatures for arbitrary messages which successfully verify with any public key.
+  
+  ### Impact
+  An attacker can forge signatures on arbitrary messages that will verify for any public key. This may allow attackers to authenticate as any user within the Stark Bank platform, and bypass signature verification needed to perform operations on the platform, such as send payments and transfer funds. Additionally, the ability for attackers to forge signatures may impact other users and projects using these libraries in different and unforeseen ways.
+  
+  ### Details
+  The (slightly simplified) ECDSA verification of a signature _**(r, s)**_ on a hashed message _**z**_ with public key _**Q**_ and curve order _**n**_ works as follows:
+  
+  The (slightly simplified) ECDSA verification of a signature _**(r, s)**_ on a hashed message _**z**_ with public key _**Q**_ and curve order _**n**_ works as follows:
+  
+  - Check that _**r**_ and _**s**_ are integers in the _**[1, n-1]**_ range, return Invalid if not.
+  - Compute _**u<sub>1</sub> = zs<sup>-1</sup> mod n**_ and _**u<sub>2</sub> = rs<sup>-1</sup> mod n**_.
+  - Compute the elliptic curve point _**(x, y) = u<sub>1</sub>G + u<sub>2</sub>Q**_, return Invalid if _**(x, y)**_ is the point at infinity.
+  - Return Valid if _**r ≡ x mod n**_, Invalid otherwise.
+  
+  The ECDSA signature verification functions in the libraries listed above fail to perform the first check, ensuring that the r and s components of the signatures are in the correct range. Specifically, the libraries are not checking that the components of the signature are non-zero, which is an important check mandated by the standard, see X9.62:2005, Section 7.4.1/a:
+  
+  > 1. If _**r’**_ is not an integer in the interval _**[1, n-1]**_, then reject the signature.
+  > 2. If _**s’**_ is not an integer in the interval _**[1, n-1]**_, then reject the signature.
+  
+  For example, consider the following excerpt of the verify function from the [ecdsa-python implementation](https://github.com/starkbank/ecdsa-python/blob/v2.0.0/ellipticcurve/ecdsa.py#L34-L41).
+  
+  ```python
+  def verify(cls, message, signature, publicKey, hashfunc=sha256):
+      byteMessage = hashfunc(toBytes(message)).digest()
+      numberMessage = numberFromByteString(byteMessage)
+      curve = publicKey.curve
+      r = signature.r
+      s = signature.s
+      inv = Math.inv(s, curve.N)
+      u1 = Math.multiply(curve.G, n=(numberMessage * inv) % curve.N, N=curve.N, A=curve.A, P=curve.P)
+      u2 = Math.multiply(publicKey.point, n=(r * inv) % curve.N, N=curve.N, A=curve.A, P=curve.P)
+      add = Math.add(u1, u2, A=curve.A, P=curve.P)
+      modX = add.x % curve.N
+      return r == modX
+  ```
+  
+  In that code snippet, the values `r` and `s` are extracted from the signature without any range check. An attacker supplying a signature equal to `(r, s) = (0, 0)` will not see their signature rejected. Proceeding with the verification, this function computes the inverse of the `s` component. Note that the `Math.inv()` function returns zero when supplied with a zero input (even though 0 does not admit an inverse). The code then computes the values `u1 = inv * numberMessage * G` and `u2 = inv * r * Q`, but since `inv` is zero, `u1` and `u2` will both be zero, i.e., the point at infinity, regardless of the value of numberMessage (the message hash, which we called _**z**_ above) and _**Q**_ (the public key). Subsequently, the implementation computes the intermediary curve point add by adding up the two previously computed points, which again results in the point at infinity. The final line checks that the r-component of the signature is equal to the x-coordinate of the curve point, essentially checking that `0 == 0` for all any message and any public key. Therefore, a signature `(r, s) = (0, 0)` is deemed valid by the code for any message, and under any public key.
+  
+  ### Recommendation
+  Users of the different Stark Bank ECDSA libraries should update to the latest versions. Specifically, versions larger or at least equal to the following should be used.
+  
+  - ecdsa-python: v2.0.1
+  - ecdsa-java: v1.0.1
+  - ecdsa-dotnet: v1.3.2
+  - ecdsa-elixir v1.0.1
+  - ecdsa-node v1.1.3
 disclosure_date: 2022-05-24
 first_patched_versions:
   - 1.0.1
