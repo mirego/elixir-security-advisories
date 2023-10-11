@@ -1,0 +1,12 @@
+---
+description: In the mtproto_proxy (aka MTProto proxy) component through 0.7.2 for Erlang, a low-privileged remote attacker can access an improperly secured default installation without authenticating and achieve remote command execution ability.
+disclosure_date: 2023-10-10
+first_patched_versions:
+  -
+id: GHSA-738q-mc72-2q22
+link: https://github.com/advisories/GHSA-738q-mc72-2q22
+package: mtproto_proxy
+severity: high
+title: MTProto proxy remote code execution vulnerability
+vulnerable_version_ranges:
+  - <= 0.7.2
