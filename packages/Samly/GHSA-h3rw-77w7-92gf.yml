@@ -1,0 +1,12 @@
+---
+description: In the Samly package before 1.4.0 for Elixir, `Samly.State.Store.get_assertion/3` can return an expired session, which interferes with access control because Samly.AuthHandler uses a cached session and does not replace it, even after expiry.
+disclosure_date: 2024-02-11
+first_patched_versions:
+  - 1.4.0
+id: GHSA-h3rw-77w7-92gf
+link: https://github.com/advisories/GHSA-h3rw-77w7-92gf
+package: Samly
+severity: moderate
+title: Samly access control vulnerability
+vulnerable_version_ranges:
+  - < 1.4.0
