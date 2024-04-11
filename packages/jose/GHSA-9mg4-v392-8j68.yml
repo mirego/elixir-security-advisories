@@ -1,0 +1,12 @@
+---
+description: erlang-jose (aka JOSE for Erlang and Elixir) through 1.11.6 allow attackers to cause a denial of service (CPU consumption) via a large p2c (aka PBES2 Count) value in a JOSE header.
+disclosure_date: 2024-03-19
+first_patched_versions:
+  - 1.11.7
+id: GHSA-9mg4-v392-8j68
+link: https://github.com/advisories/GHSA-9mg4-v392-8j68
+package: jose
+severity: moderate
+title: erlang-jose vulnerable to denial of service via large p2c value
+vulnerable_version_ranges:
+  - < 1.11.7
