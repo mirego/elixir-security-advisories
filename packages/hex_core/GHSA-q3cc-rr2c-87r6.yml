@@ -1,0 +1,12 @@
+---
+description: Hex package manager hex_core version 0.3.0 and earlier contains a Signing oracle vulnerability in Package registry verification that can result in Package modifications not detected, allowing code execution. This attack appears to be exploitable via victim fetches packages from malicious/compromised mirror. This vulnerability appears to have been fixed in 0.4.0.
+disclosure_date: 2022-05-13
+first_patched_versions:
+  - 0.4.0
+id: GHSA-q3cc-rr2c-87r6
+link: https://github.com/advisories/GHSA-q3cc-rr2c-87r6
+package: hex_core
+severity: high
+title: Hex authenticity of signed packages not validated
+vulnerable_version_ranges:
+  - < 0.4.0
