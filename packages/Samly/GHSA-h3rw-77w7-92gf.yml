@@ -6,7 +6,7 @@ first_patched_versions:
 id: GHSA-h3rw-77w7-92gf
 link: https://github.com/advisories/GHSA-h3rw-77w7-92gf
 package: Samly
-severity: moderate
+severity: critical
 title: Samly access control vulnerability
 vulnerable_version_ranges:
   - < 1.4.0
