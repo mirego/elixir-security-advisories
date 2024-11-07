@@ -1,0 +1,33 @@
+---
+description: |
+  ### Summary
+  
+  Queue deletion via the HTTP API was not verifying the `configure` permission of the user.
+  
+  ### Impact
+  
+  Users who had all of the following:
+  
+  1. Valid credentials
+  2. Some permissions for the target virtual host
+  3. HTTP API access 
+  
+  could delete queues it had no (deletion) permissions for.
+  
+  ### Workarounds
+  
+  Disable management plugin and use, for example, [Prometheus and Grafana](https://www.rabbitmq.com/docs/prometheus) for monitoring.
+  
+  ### OWASP Classification
+  
+  OWASP Top10 A01:2021 – Broken Access Control
+disclosure_date: 2024-11-06
+first_patched_versions:
+  - 3.12.11
+id: GHSA-pj33-75x5-32j4
+link: https://github.com/advisories/GHSA-pj33-75x5-32j4
+package: rabbit_common
+severity: high
+title: RabbitMQ HTTP API's queue deletion endpoint does not verify that the user has a required permission
+vulnerable_version_ranges:
+  - '>= 3.12.7, < 3.12.11'
