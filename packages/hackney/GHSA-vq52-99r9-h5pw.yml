@@ -1,7 +1,5 @@
 ---
-description: |-
-  Versions of the package hackney from 0.0.0 are vulnerable to Server-side Request Forgery (SSRF) due to improper parsing of URLs by URI built-in module and hackey. Given the URL http://127.0.0.1?@127.2.2.2/, the URI function will parse and see the host as 127.0.0.1 (which is correct), and hackney will refer the host as 127.2.2.2/. 
-  This vulnerability can be exploited when users rely on the URL function for host checking.
+description: Versions of the package hackney from 0.0.0 are vulnerable to Server-side Request Forgery (SSRF) due to improper parsing of URLs by URI built-in module and hackey. Given the URL http://127.0.0.1?@127.2.2.2/, the URI function will parse and see the host as 127.0.0.1 (which is correct), and hackney will refer the host as 127.2.2.2/. This vulnerability can be exploited when users rely on the URL function for host checking.
 disclosure_date: 2025-02-11
 first_patched_versions:
   -
