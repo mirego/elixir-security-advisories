@@ -1,0 +1,14 @@
+---
+description: |-
+  Hackney fails to properly release HTTP connections to the pool after handling 307 Temporary Redirect responses. Remote attackers can exploit this to exhaust connection pools, causing denial of service in applications using the library.
+  Fix for this issue has been included in 1.24.0 release.
+disclosure_date: 2025-05-28
+first_patched_versions:
+  - 1.24.0
+id: GHSA-9fm9-hp7p-53mf
+link: https://github.com/advisories/GHSA-9fm9-hp7p-53mf
+package: hackney
+severity: low
+title: Hackney fails to properly release HTTP connections to the pool
+vulnerable_version_ranges:
+  - < 1.24.0
