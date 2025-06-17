@@ -1,0 +1,37 @@
+---
+description: |-
+  ### Impact
+  
+  Session tokens remain valid on the server after user logout, creating a security gap where:
+  
+  - Compromised tokens (via XSS, network interception, or device theft) continue to work even after the user logs out
+    - The sessions stored in the database still expire, limiting the duration during which this could be exploited
+  - Users cannot fully invalidate their sessions when logging out from shared or potentially compromised devices 
+    - by default, changing one's password *does* invalidate all other sessions, so changing your password as a security measure would have been effective
+  - May cause compliance issues with security frameworks requiring complete session 
+  ### Patches
+  Upgrade to version 2.10.0. After upgrading, users must update their AuthController implementation to use the new `clear_session/2` function with their OTP app name. You will be prompted to do so with a compile-time error.
+  
+  If you do not have the setting `require_token_presence_for_authentication?` set to `true` in the `tokens` section, you will see a separate error:
+  
+  ```
+  ** (Spark.Error.DslError) authentication -> session_identifier:
+  Must set `authentication.session_identifier` to either `:jti` or `:unsafe`.
+  
+  ...
+  ```
+  
+  In order to revoke sessions on log out when not storing tokens directly in the session, we must have some unique identifier with which to do so. You should prefer to enable `require_token_presence_for_authentication?` if possible, instead of setting this to `:jti`. Note that whatever you do here, if you did not previously have `require_token_presence_for_authentication?` set to `true`, setting it to `true` *or* setting `authentication.session_identifier` to `:jti` will log out all of your currently authenticated users.
+  
+  ### Workarounds
+  You can manually revoke tokens in your `logout/2` handler in your auth controller.
+disclosure_date: 2025-06-17
+first_patched_versions:
+  - 2.10.0
+id: GHSA-f7gq-h8jv-h3cq
+link: https://github.com/advisories/GHSA-f7gq-h8jv-h3cq
+package: ash_authentication_phoenix
+severity: low
+title: ash_authentication_phoenix has Insufficient Session Expiration
+vulnerable_version_ranges:
+  - <= 2.9.0
