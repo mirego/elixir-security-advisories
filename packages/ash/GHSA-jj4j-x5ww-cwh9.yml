@@ -1,0 +1,36 @@
+---
+description: |-
+  ### Summary
+  Certain bulk action calls with a `before_transaction` hook and no `after_transaction` hook, will call the `before_transaction` hook before authorization is checked and a Forbidden error is returned, when called as a bulk action.
+  
+  The impact is that a malicious user could cause a `before_transaction` to run even though they are not authorized to perform the whole action. The `before_action` could run a sensitive/expensive operation.
+  
+  ### Impact
+  A malicious user could cause a `before_action` to run even though they are not authorized to perform the whole action.
+  
+  You are affected if you have an create, update or destroy action that:
+  
+  - has a before_transaction hook on it, and no after_transaction hook on it.
+  - is being used via an `Ash.bulk_*` callback (which AshJsonApi and AshGraphql do for update/destroy actions)
+  
+  Whether or not or how much it matters depends on the nature of those before_transaction callbacks. If those before_transaction callbacks are side-effectful, or just doing something like looking up some external data. If your API endpoints are behind authentication and what kind. 
+  
+  ### Severity
+  
+  The severity for this was hard to gauge. `before_transaction` hooks are not that commonly used. Additionally, any attacker must know which of these things are available to them, be authenticated to make such a request (i.e you very rarely have policies preventing the running of anonymous queries), so privileges and inside knowledge are required. Additionally, the action will always return a `forbidden` error, so no information is revealed. We will evaluate and adjust the severity in the next few days as needed.
+  
+  It is currently marked as High, given that we really don't know what logic folks are putting in their before_transaction hooks and it could theoretically be very bad.
+  
+  ### Workarounds
+  
+  You should update ASAP, but if for whatever reason you cannot update, you can add logic to those before_transaction hooks to prevent them from doing their logic before they should.
+disclosure_date: 2025-09-15
+first_patched_versions:
+  - 3.5.39
+id: GHSA-jj4j-x5ww-cwh9
+link: https://github.com/advisories/GHSA-jj4j-x5ww-cwh9
+package: ash
+severity: high
+title: Before action, Ash's hooks may execute in certain scenarios despite a request being forbidden
+vulnerable_version_ranges:
+  - <= 3.5.38
