@@ -1,0 +1,66 @@
+---
+description: |-
+  ### Summary
+  
+  When using **filter** authorization, two edge cases could cause the policy compiler/authorizer to generate a permissive filter:
+  
+  1. **Bypass policies whose condition can never pass at runtime** were compiled as
+     `OR(AND(condition, compiled_policies), NOT(condition))`.
+     If the condition could never be true at runtime, the `NOT(condition)` branch evaluated truthy and the overall expression became permissive.
+  
+  2. **Runtime policy scenarios that reduce to “no checks are applicable”** (an empty SAT scenario) were treated as an empty clause and dropped instead of being treated as **`false`**, which could again produce an overly broad (permissive) filter.
+  
+  These bugs could allow reads to return records that should have been excluded by policy.
+  
+  ### Impact
+  
+  Projects that rely on **filter-based authorization** and define:
+  
+  * `bypass ... do ... end` blocks whose condition(s) are only resolvable at runtime and can never pass in a given request context, **or**
+  * runtime checks that simplify to an **empty** scenario for a clause
+  
+  may unintentionally generate a permissive query filter, potentially returning unauthorized data.
+  
+  *Actions primarily affected:* reads guarded by filter policies. Non-filter (e.g., hard forbid) policies are not impacted.
+  
+  ### Technical details
+  
+  This patch corrects two behaviors:
+  
+  * **`Ash.Policy.Policy.compile_policy_expression/1`** now treats **bypass** blocks as
+    `AND(condition_expression, compiled_policies)`
+    instead of `OR(AND(...), NOT(condition_expression))`. This removes the permissive `NOT(condition)` escape hatch when a bypass condition never passes.
+  
+  * **`Ash.Policy.Authorizer`** now treats **empty SAT scenarios** (`scenario == %{}`) as **`false`**, ensuring impossible scenarios do not collapse into a no-op and inadvertently widen the filter. The reducer also normalizes `nil` → `false` consistently when building `auto_filter` fragments.
+  
+  Relevant changes are in:
+  
+  * `lib/ash/policy/policy.ex` (bypass compilation)
+  * `lib/ash/policy/authorizer/authorizer.ex` (scenario handling / auto_filter normalization)
+  * Tests added: `test/policy/filter_condition_test.exs` (`RuntimeFalsyCheck`, `RuntimeBypassResource`) validate the corrected behavior.
+  
+  ### Workarounds
+  
+  * Avoid `bypass` policies whose conditions are only decidable at runtime and may be perpetually false in some contexts; prefer explicit `authorize_if`/`forbid_if` blocks without `bypass` for those cases.
+  * Add an explicit **final `forbid_if always()`** guard for sensitive reads as a belt-and-suspenders fallback until user can upgrade.
+  * Where feasible, replace runtime-unknown checks with strict/compile-time checks or restructure to avoid empty SAT scenarios.
+  
+  ### How to tell if user is affected
+  
+  User is likely affected if ALL of the following are true:
+  
+  *  Uses **filter authorization**; and
+  * Defines `bypass` block with `access_type :runtime` without any policies after it; or
+  * Defines `bypass` blocks whose conditions are evaluated at runtime (e.g., checks with `strict_check/3` returning `:unknown` and a runtime `check/4` that may never succeed in some contexts) without any policies after it
+  
+  A quick sanity test is to issue a read expected to return **no** rows under such a bypass or runtime-falsy condition and verify it indeed returns `[]`. The included test `bypass works with filter policies` demonstrates the corrected, non-permissive behavior.
+disclosure_date: 2025-10-13
+first_patched_versions:
+  - 3.6.2
+id: GHSA-7r7f-9xpj-jmr7
+link: https://github.com/advisories/GHSA-7r7f-9xpj-jmr7
+package: ash
+severity: high
+title: 'Ash Framework: Filter authorization misapplies impossible bypass/runtime policies'
+vulnerable_version_ranges:
+  - < 3.6.2
