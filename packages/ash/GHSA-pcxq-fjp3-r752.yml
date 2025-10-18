@@ -10,9 +10,8 @@ description: |-
   - Other policies exist but their conditions don't match
   
   ### Details
-  Bug introduced in PR #2365 (commit 79749c26).
+  Vulnerable code in: [lib/ash/policy/policy.ex:69](https://github.com/ash-project/ash/blob/b2e4d625/lib/ash/policy/policy.ex#L69)
   
-  Affected line: [lib/ash/policy/policy.ex:69](https://github.com/ash-project/ash/blob/b2e4d625/lib/ash/policy/policy.ex#L69)
   ```elixir
   {%{bypass?: true}, cond_expr, complete_expr}, {one_condition_matches, all_policies_match} ->
     {
