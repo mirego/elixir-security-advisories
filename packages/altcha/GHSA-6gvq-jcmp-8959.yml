@@ -1,0 +1,27 @@
+---
+description: |-
+  ### Impact
+  
+  A cryptographic semantic binding flaw in ALTCHA libraries allows challenge payload splicing, which may enable replay attacks. The HMAC signature does not unambiguously bind challenge parameters to the nonce, allowing an attacker to reinterpret a valid proof-of-work submission with a modified expiration value. This may allow previously solved challenges to be reused beyond their intended lifetime, depending on server-side replay handling and deployment assumptions.
+  
+  The vulnerability primarily impacts abuse-prevention mechanisms such as rate limiting and bot mitigation. It does not directly affect data confidentiality or integrity. 
+  
+  ### Patches
+  
+  This issue has been addressed by enforcing explicit semantic separation between challenge parameters and the nonce during HMAC computation.
+  
+  Users are advised to upgrade to patched versions.
+  
+  ### Workarounds
+  
+  As a mitigation, implementations may append a delimiter to the end of the `salt` value prior to HMAC computation (for example, `<salt>?expires=<time>&`). This prevents ambiguity between parameters and the nonce and is backward-compatible with existing implementations, as the delimiter is treated as a standard URL parameter separator.
+disclosure_date: 2025-12-16
+first_patched_versions:
+  - 1.0.0
+id: GHSA-6gvq-jcmp-8959
+link: https://github.com/advisories/GHSA-6gvq-jcmp-8959
+package: altcha
+severity: moderate
+title: ALTCHA Proof-of-Work Vulnerable to Challenge Splicing and Replay
+vulnerable_version_ranges:
+  - < 1.0.0
