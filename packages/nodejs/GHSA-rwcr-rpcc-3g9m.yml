@@ -1,0 +1,30 @@
+---
+description: |-
+  ### Impact
+  
+  This vulnerability results in Cross-User Data Leakage or Information Disclosure due to a race condition in the worker protocol.
+  
+  The lack of request-response correlation creates a "stale response" vulnerability. Because the worker does not verify which request a response belongs to, it may return the next available data in the buffer to an unrelated caller.
+  
+  In high-throughput environments where the library processes sensitive user data (e.g., PII, authentication tokens, or private records), a timeout or high concurrent load can cause Data A (belonging to User A) to be returned to User B.
+  
+  This may lead to unauthorized information disclosure that is difficult to trace, as the application may not throw an error but instead provide "valid-looking" yet entirely incorrect and private data to the wrong session.
+  
+  ### Patches
+  
+  fixed in v3.1.4
+  
+  ### Resources
+  https://github.com/revelrylabs/elixir-nodejs/issues/100
+  
+  https://github.com/revelrylabs/elixir-nodejs/pull/105
+disclosure_date: 2026-03-26
+first_patched_versions:
+  - 3.1.4
+id: GHSA-rwcr-rpcc-3g9m
+link: https://github.com/advisories/GHSA-rwcr-rpcc-3g9m
+package: nodejs
+severity: high
+title: Ielixir-nodejs has Cross-User Data Leakage or Information Disclosure due to Worker Protocol Race Condition
+vulnerable_version_ranges:
+  - < 3.1.4
