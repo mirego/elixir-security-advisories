@@ -25,6 +25,6 @@ id: GHSA-rwcr-rpcc-3g9m
 link: https://github.com/advisories/GHSA-rwcr-rpcc-3g9m
 package: nodejs
 severity: high
-title: Ielixir-nodejs has Cross-User Data Leakage or Information Disclosure due to Worker Protocol Race Condition
+title: elixir-nodejs has Cross-User Data Leakage or Information Disclosure due to Worker Protocol Race Condition
 vulnerable_version_ranges:
   - < 3.1.4
