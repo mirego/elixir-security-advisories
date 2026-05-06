@@ -1,0 +1,30 @@
+---
+description: |-
+  ## Summary
+  
+  An unauthenticated remote denial-of-service vulnerability in `Plug.Cowboy.Conn` allows any attacker who can reach an HTTPS Plug.Cowboy listener via HTTP/2 to permanently exhaust the BEAM atom table and crash the entire Erlang VM.
+  
+  ## Am I Affected?
+  
+  All users running plug_cowboy with HTTP/2 may be affected, this includes Phoenix applications. If another HTTP adapter such as Bandit is used, then the consuming project is not affected. If the HTTP/2 endpoint is exposed directly (without a proxy) then the project will be affected. If a proxy is in use then it depends on the proxy configuration. Many proxies use HTTP/1.1 internally, and would be unaffected.
+  
+  ## Impact
+  
+  The vulnerability will allow crashing the Erlang VM (BEAM) via atom exhaustion.
+  
+  ## Mitigation
+  
+  Users are advised to update to plug_cowboy v2.8.1 to mitigate this issue.
+  
+  ## Credits
+  Plug.Cowboy thanks Peter Ullrich for finding and responsibly disclosing this vulnerability.
+disclosure_date: 2026-05-05
+first_patched_versions:
+  - 2.8.1
+id: GHSA-q8x4-x7mp-5vg2
+link: https://github.com/advisories/GHSA-q8x4-x7mp-5vg2
+package: plug_cowboy
+severity: high
+title: Plug.Cowboy vulnerable to unauthenticated remote DoS via HTTP/2 `:scheme` atom-table exhaustion
+vulnerable_version_ranges:
+  - '>= 2.0.0, < 2.8.1'
