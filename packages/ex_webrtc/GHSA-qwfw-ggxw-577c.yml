@@ -1,0 +1,50 @@
+---
+description: |-
+  ### Summary
+  Missing DTLS peer certificate fingerprint validation in the DTLS client (active) role removes one side of WebRTC's mutual authentication. The bug is not independently exploitable for media interception in standard deployments, but enables a full man-in-the-middle attack when chained with insecure signalling or a peer with similar validation gaps.
+  
+  ### Details
+  `ex_webrtc` validates the DTLS peer's certificate fingerprint against the value advertised in the SDP offer/answer when acting as the DTLS server (passive role). When acting as the DTLS client (active role) -- the default when answering a remote offer with `a=setup:actpass`, which is what browsers always send -- the fingerprint check was skipped on the handshake-completion code path that returns no outgoing packets. This is the most common deployment mode (e.g., an SFU or media server answering a browser's offer).
+  
+  All released versions prior to 0.15.1 and 0.16.1 are affected. No backports to older lines are planned -- users should upgrade to 0.15.1 or 0.16.1.
+  
+  ### Impact
+  The bug eliminates one half of WebRTC's mutual DTLS authentication. The security of the media and data-channel encryption then rests entirely on the remote peer's fingerprint check.
+  
+  On its own, the bug does **not** allow:
+  
+  - Passive eavesdropping on SRTP media.
+  - A network-positioned attacker to intercept media against a standards-compliant browser peer over a TLS-protected signalling channel -- the browser's fingerprint check prevents the second leg of the MITM from succeeding.
+  
+  The bug **does** enable a full MITM on media and data channels when combined with any of:
+  
+  - Insecure signalling (HTTP / plain WebSocket) allowing SDP rewrite in transit.
+  - A compromised or malicious signalling server.
+  - A peer implementation with a similar fingerprint-validation gap.
+  
+  Both audio/video media (SRTP) and data channels (SCTP-over-DTLS) are affected.
+  
+  ### Patches
+  - `0.15.1` (for the 0.15.x line)
+  - `0.16.1` (for the 0.16.x line)
+  
+  ### Workarounds
+  None. Upgrade is required.
+  
+  ### Resources
+  - [Issue](https://github.com/elixir-webrtc/ex_webrtc/issues/249)
+  - [PR](https://github.com/elixir-webrtc/ex_webrtc/pull/250)
+  - [Release 0.15.1](https://github.com/elixir-webrtc/ex_webrtc/releases/tag/v0.15.1)
+  - [Release 0.16.1](https://github.com/elixir-webrtc/ex_webrtc/releases/tag/v0.16.1)
+disclosure_date: 2026-05-08
+first_patched_versions:
+  - 0.16.1
+  - 0.15.1
+id: GHSA-qwfw-ggxw-577c
+link: https://github.com/advisories/GHSA-qwfw-ggxw-577c
+package: ex_webrtc
+severity: high
+title: ex_webrtc client-role handshake is missing DTLS peer fingerprint validation
+vulnerable_version_ranges:
+  - = 0.16.0
+  - < 0.15.1
