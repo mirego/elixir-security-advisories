@@ -1,0 +1,34 @@
+---
+description: |-
+  Summary
+  `decimal` doesn't bound the exponent on parsed input, so something like `"1e10000000"` is parsed fine but then explodes the memory to more than 7GB if you run e.g. `Decimal.add(Decimal.parse("1e10000000"), 1)` because for positive `exp`, the function tail-recurses with `coef * 10` and `exp - 1` per iteration, growing the bignum coefficient by one digit each step. In the worst case, one request is enough to OOM the BEAM.
+  
+  ### Details
+  `Decimal.new/parse/cast` happily store huge exponents. After that, a bunch of core paths allocate proportional to `exp`:
+  - `add/sub/div` go through `add_align`, which calls `pow10(exp1 - exp2)` and builds a giant bignum (lib/decimal.ex:1734-1738, 1827).
+  - `to_string/2` with `:normal` (also `:xsd` and the `String.Chars` impl) does `:lists.duplicate(exp, ?0)` (lib/decimal.ex:1506, 1513).
+  - `to_integer/1` recurses `coef * 10`, `exp - 1` once per unit of `exp` (lib/decimal.ex:1603-1605).
+  - `round/3` does the same `:lists.duplicate` trick on the exp difference (lib/decimal.ex:1850, 1874).
+  - `compare/3` with a threshold argument loops back into `add`/`sub`, so it's vulnerable too (lib/decimal.ex:331-332).
+  
+  ### PoC
+  Any of these will hang or OOM the BEAM:
+  ```elixir
+  Decimal.add(Decimal.new("1"), Decimal.new("1e1000000000"))
+  Decimal.to_string(Decimal.new("1e1000000000"), :normal)
+  Decimal.to_integer(Decimal.new("1e1000000000"))
+  Decimal.round(Decimal.new("1e1000000000"))
+  ```
+  
+  ### Impact
+  Unauthenticated remote DoS. Anything that takes a user-supplied decimal (JSON, form field, Ecto `:decimal` field — basically everywhere) and then does arithmetic, rounding, `to_integer`, or `to_string` on it is exposed. One request can kill the node with a Out-of-Memory exception.
+disclosure_date: 2026-05-12
+first_patched_versions:
+  - 3.0.0
+id: GHSA-rhv4-8758-jx7v
+link: https://github.com/advisories/GHSA-rhv4-8758-jx7v
+package: decimal
+severity: moderate
+title: 'Decimal: Unbounded exponent in `Decimal.new` enables unauthenticated DoS'
+vulnerable_version_ranges:
+  - '>= 0.1.0, < 3.0.0'
