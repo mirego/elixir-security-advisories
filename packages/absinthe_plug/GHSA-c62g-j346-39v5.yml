@@ -1,0 +1,17 @@
+---
+description: |-
+  Improper Neutralization of Input During Web Page Generation (XSS) vulnerability in absinthe-graphql absinthe_plug allows reflected cross-site scripting via the GraphiQL interface.
+  
+  'Elixir.Absinthe.Plug.GraphiQL':js_escape/1 in lib/absinthe/plug/graphiql.ex escapes single quotes and newlines in the query GET parameter before embedding it in an inline JavaScript string, but does not escape backslashes. An attacker can bypass the escaping by prefixing a quote with a backslash (e.g. \'), breaking out of the string context and executing arbitrary JavaScript in the victim's browser.
+  
+  This issue affects absinthe_plug: from 1.2.0.
+disclosure_date: 2026-05-08
+first_patched_versions:
+  -
+id: GHSA-c62g-j346-39v5
+link: https://github.com/advisories/GHSA-c62g-j346-39v5
+package: absinthe_plug
+severity: low
+title: absinthe_plug Has a Cross-site Scripting vulnerability
+vulnerable_version_ranges:
+  - '>= 1.2.0, <= 1.5.9'

