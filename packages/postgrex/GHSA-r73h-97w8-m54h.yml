@@ -1,0 +1,37 @@
+---
+description: |-
+  ### Summary
+  
+  SQL injection in `Postgrex.Notifications.listen/3`: the `channel` argument is interpolated straight into `LISTEN "..."` / `UNLISTEN "..."` without escaping the `"` character. Any caller that lets a user influence the channel name (e.g. a pub/sub bridge that uses a tenant id or topic slug as the channel) and the name is not sanitized can execute arbitrary SQL on the notifications connection.
+  
+  Only those using the `Postgrex.Notifications` directly or via a dependency, with a non-sanitized channel name are vulnerable. Ecto does not use Postgrex.Notifications by default, but you must validate if any other dependency does.
+  
+  ### Details
+  
+  PostgreSQL escapes a `"` inside a quoted identifier by doubling it to `""`. Postgrex doesn't do that doubling, so a `"` inside `channel` closes the identifier early and everything after it is parsed as SQL on the same connection.
+  
+  The notifications connection runs as whatever DB role the app is configured with. Unlike the `Postgrex.query/4` API, there's no extended-protocol guard here: `LISTEN`/`UNLISTEN` are sent as simple queries, so multi-statement payloads work and the attacker can chain `; CREATE TABLE …`, `; DROP …`, `; CREATE ROLE …`, etc.
+  
+  ### Impact
+  
+  SQL injection on the notifications connection. Affects any application that calls `Postgrex.Notifications.listen/3` (or `unlisten/3`) with a channel name derived from untrusted input. Executes as the configured DB user with no protocol-level limit on what can be chained, so the realistic blast radius is read/modify/destroy on any data the app's DB role can reach.
+  
+  ### Fix
+  
+  Upgrade to latest Postgrex v0.22.2 or later. Altenratively, sanitize any user input given as channel name by making sure it doesn't include quotes as well as null bytes (not strictly required, but recommended):
+  
+  ```elixir
+  if String.contains?(channel_name, ["\"", "\0"]) do
+    raise "bad channel name"
+  end
+  ```
+disclosure_date: 2026-05-18
+first_patched_versions:
+  - 0.22.2
+id: GHSA-r73h-97w8-m54h
+link: https://github.com/advisories/GHSA-r73h-97w8-m54h
+package: postgrex
+severity: high
+title: 'Postgrex: Channel-name SQL injection in `Postgrex.Notifications.listen/3`'
+vulnerable_version_ranges:
+  - '>= 0.16.0, < 0.22.2'

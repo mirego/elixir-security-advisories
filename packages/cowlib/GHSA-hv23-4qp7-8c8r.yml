@@ -1,0 +1,17 @@
+---
+description: |-
+  Improper Neutralization of CRLF Sequences ('CRLF Injection') vulnerability in ninenines cowlib allows SSE event splitting and injection via unvalidated field values.
+  
+  cow_sse:event/1 in cowlib guards the id and event fields against \n but not against bare \r, and the internal prefix_lines/2 function used for data and comment fields splits only on \n. Because the SSE specification requires decoders to treat \r\n, \r, and \n as equivalent line terminators, an attacker who controls any of these fields can inject additional SSE lines and forge a complete event with an arbitrary event type and data payload on the receiving end. In typical deployments where browser EventSource clients or other SSE consumers dispatch on event.type and render event.data, this enables event splitting, client-side logic manipulation, and stored-XSS-equivalent behaviour when event data is inserted into the DOM.
+  
+  This issue affects cowlib from 2.6.0.
+disclosure_date: 2026-05-11
+first_patched_versions:
+  - 2.16.1
+id: GHSA-hv23-4qp7-8c8r
+link: https://github.com/advisories/GHSA-hv23-4qp7-8c8r
+package: cowlib
+severity: moderate
+title: "ninenines cowlib: Improper Neutralization of CRLF Sequences ('CRLF Injection') vulnerability allows SSE event splitting and injection via unvalidated field values"
+vulnerable_version_ranges:
+  - '>= 2.6.0, < 2.16.1'
