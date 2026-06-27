@@ -1,0 +1,36 @@
+---
+description: |-
+  ### Summary
+  
+  The HTTP/3 redirect handler in `src/hackney_h3.erl` forwards the original request headers (`Authorization`, `Cookie`, `Proxy-Authorization`) and, for 307/308 responses, the original request body to the redirect target without checking whether the target host matches the origin. When `follow_redirect` is enabled and a server responds with a cross-origin `Location`, hackney delivers the caller's credentials verbatim to the attacker-controlled host. The main hackney HTTP/1 client has `maybe_strip_auth_on_redirect/2` (the fix for CVE-2018-1000007); the H3 client was added later without it.
+  
+  ### Details
+  
+  In `src/hackney_h3.erl`, `handle_redirect/11` (line 165) extracts the redirect target from the server-controlled `Location` header via `get_redirect_location/1` and resolves it with `resolve_redirect_url/2`, which accepts any absolute `http://` or `https://` URL. It then calls `do_request_with_redirect/8` passing the original `Headers` list unchanged. For 307/308 responses, `redirect_method/2` preserves the original method and body, so the POST body is also forwarded.
+  
+  No comparison is made between the original URL's scheme, host, or port and the redirect target. The downstream `connect/3` opens a new QUIC connection to whatever the `Location` header named, and `build_request_headers/4` serializes the unmodified headers into the QPACK-encoded request.
+  
+  ### PoC
+  
+  1. Issue an HTTP/3 POST to an attacker-controlled origin with `follow_redirect => true` and an `Authorization: Bearer ...` header.
+  2. The attacker's server responds `307 Location: https://other.host/collect`.
+  3. hackney opens a new connection to `other.host` and re-sends the original headers and body, including the bearer token and any `Cookie` headers.
+  
+  ### Impact
+  
+  Credential and request-body disclosure to attacker-controlled origins. Affects hackney 3.1.1 through 4.0.0 when using the HTTP/3 client with `follow_redirect` enabled. Any upstream that is malicious, compromised, or reachable via DNS/MITM can steal session tokens, bearer credentials, and POST bodies. CVSS v4.0: **6.0 (MEDIUM)**.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/benoitc/hackney/commit/e61b7d04b7826847e1efe614106ef4d580c78eab
+  * Patch commit: https://github.com/benoitc/hackney/commit/c58d5b50bade146360b85caf3dc8065807b08246
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-h73q-4w9q-82h4
+link: https://github.com/advisories/GHSA-h73q-4w9q-82h4
+package: hackney
+severity: moderate
+title: 'Hackney: Cross-origin Redirect Leaks Authorization, Cookie, and Request Body'
+vulnerable_version_ranges:
+  - '>= 3.1.1, < 4.0.1'

@@ -1,0 +1,41 @@
+---
+description: |-
+  ### Summary
+  
+  CRLF injection in hackney's WebSocket upgrade request builder (`src/hackney_ws.erl`). `init/1` copies the `host`, `path`, `headers`, and `protocols` options from the caller-supplied opts map verbatim into `#ws_data{}`, and `do_handshake/1` splices them directly into the raw HTTP/1.1 upgrade request by binary concatenation with no `\r\n` or `\0` stripping. A caller that passes any of these fields from untrusted input can inject arbitrary header lines into the outbound upgrade request.
+  
+  ### Details
+  
+  `do_handshake/1` builds the upgrade request at several concatenation sites:
+  
+  - **Host header** (lines 583–590): the host binary is written straight into `Host: <host>:<port>\r\n`.
+  - **Sec-WebSocket-Protocol** (lines 601–602): protocol tokens are joined with `, ` and appended as a header line.
+  - **Extra headers** (line 606): caller-supplied `{Name, Value}` tuples are concatenated as `Name: Value\r\n` with no sanitization of either component.
+  - **Request path** (line 611): the path is interpolated into the `GET <path> HTTP/1.1\r\n` request line.
+  
+  None of these sites reject `\r`, `\n`, or `\0`. A header value like `<<"benign\r\nAuthorization: Bearer token">>` produces two distinct header lines on the wire. A path with an embedded `\r\n` rewrites the request line itself.
+  
+  ### PoC
+  
+  1. Call `:hackney_ws.start_link/1` with `headers: [{"X-User", "v\r\nAuthorization: Bearer attacker"}]`.
+  2. Connect to a raw TCP listener and capture the bytes hackney writes.
+  3. The request contains a standalone `Authorization: Bearer attacker` line that the upstream WebSocket server parses as a legitimate header.
+  
+  ### Impact
+  
+  Header injection / request smuggling in outbound WebSocket upgrades. Affects hackney 2.0.0 through 4.0.0 wherever `host`, `path`, `headers`, or `protocols` options are populated from network or user input. Consequences include forging authentication headers toward the upstream server, log and cache poisoning, and request smuggling through intermediary proxies. CVSS v4.0: **6.9 (MEDIUM)**.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/benoitc/hackney/commit/690cecaf236fba49526da404a5bc889a24367a3e
+  * Patch commit: https://github.com/benoitc/hackney/commit/52310ca807e7b48441ba0e9129171f535313fdd1
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-f9vr-g2g2-x9fg
+link: https://github.com/advisories/GHSA-f9vr-g2g2-x9fg
+package: hackney
+severity: moderate
+title: Hackney has CRLF / header injection in WebSocket upgrade request
+vulnerable_version_ranges:
+  - '>= 2.0.0, < 4.0.1'

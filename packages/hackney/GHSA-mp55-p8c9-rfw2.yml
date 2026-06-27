@@ -1,0 +1,51 @@
+---
+description: |-
+  ### Summary
+  
+  CRLF injection in `hackney_cookie:setcookie/3` (`src/hackney_cookie.erl`). The function validates `Name` and `Value` against CR/LF and control characters but concatenates the `domain` and `path` options verbatim into the output binary. If either option carries attacker-controlled data, a `Host` header forwarded as the cookie domain, a request URI forwarded as the cookie path, a `\r\n` in the value splits the `Set-Cookie` header and lets the attacker inject additional headers into the HTTP response.
+  
+  ### Details
+  
+  **1. Asymmetric validation**
+  
+  Lines 27–34 of `hackney_cookie.erl` run `binary:match` on `Name` and `Value`, rejecting `=`, `,`, `;`, whitespace, `\r`, `\n`, `\013`, and `\014`. The `Domain` and `Path` options (lines 47 and 51) skip this check entirely and land straight in the result iolist:
+  
+  ```erlang
+  [<<"; Domain=">>, Domain]
+  [<<"; Path=">>,   Path]
+  ```
+  
+  `iolist_to_binary(...)` on line 63 flattens everything and returns it to the caller.
+  
+  **2. Injection**
+  
+  A `Path` of `<<"/x\r\nSet-Cookie: admin=1; Path=/">>` produces a binary with a literal `\r\n`. Written into a `Set-Cookie` response header, the receiving HTTP parser splits it into two headers — one legitimate, one attacker-controlled.
+  
+  **3. Realistic trigger**
+  
+  Common patterns: keying the cookie domain off `Host`, deriving the path from the request URI, or copying a `Location` path into a cookie. Any of these lets a remote attacker control the injected content.
+  
+  ### PoC
+  
+  1. Call `hackney_cookie:setcookie(<<"sid">>, <<"abc">>, [{path, <<"/x\r\nSet-Cookie: admin=1; Path=/">>}])`.
+  2. The returned binary contains a literal `\r\n` followed by a second `Set-Cookie:` line.
+  3. Write the result into a `Set-Cookie` response header — the client parses two headers, including `admin=1`.
+  
+  ### Impact
+  
+  Cookie injection / HTTP response splitting at the `hackney_cookie` API boundary. Affects hackney 0.9.0 through 4.0.0 wherever `domain` or `path` options are populated from request data. Exploitation can overwrite session/auth cookies, fix cookies, or strip `Secure`/`HttpOnly` flags. CVSS v4.0: **2.1 (LOW)** — requires attacker-controlled input to reach the `domain` or `path` option.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/benoitc/hackney/commit/602d5c7f2ea4acbc83ed75230655d935a0750ebc
+  * Patch commit: https://github.com/benoitc/hackney/commit/8e02b99c28aea1b3fa2ddc0e66f51fe5bb0ac540
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-mp55-p8c9-rfw2
+link: https://github.com/advisories/GHSA-mp55-p8c9-rfw2
+package: hackney
+severity: low
+title: Hackney has CRLF / header injection via unvalidated `domain` and `path` options
+vulnerable_version_ranges:
+  - '>= 0.9.0, < 4.0.1'

@@ -1,0 +1,65 @@
+---
+description: |-
+  ### Summary
+  
+  [CVE-2026-47066](https://nvd.nist.gov/vuln/detail/CVE-2026-47066) is an infinite loop (CWE-835) in hackney's Alt-Svc response header parser (`src/hackney_altsvc.erl`). When an HTTP server returns an `Alt-Svc` header whose value begins with a non-token byte (e.g. `!`, `@`, `=`, `;`), the parser enters a tight tail-recursive loop that pins an Erlang scheduler at 100% CPU and permanently hangs the calling connection process. Because the parser is invoked synchronously on every HTTP response, any attacker-controlled origin can trigger the hang with a single-byte header value.
+  
+  ### Details
+  
+  **1. Parser dispatch**
+  
+  `parse_and_cache/3` is called inside the hackney connection process on each HTTP response. It collects all `Alt-Svc` header values via `collect_altsvc_headers/1`, concatenates them, and passes the result to `parse/1`, which calls `parse_entries(Header, [])`.
+  
+  **2. Failed token consumption**
+  
+  `parse_entries/2` → `parse_entry/1` → `parse_protocol/1` → `parse_token(Data, <<>>)`. The function `parse_token/2` pattern-matches leading bytes: alphanumeric, `-`, `_`, whitespace, and comma all have explicit clauses. Any other byte (e.g. `!`) falls through to the catch-all:
+  
+  ```erlang
+  parse_token(Rest, <<>>) -> {undefined, Rest}.
+  ```
+  
+  This returns the *input unchanged* — no byte is consumed.
+  
+  **3. No-progress loop**
+  
+  `parse_entry` propagates `{undefined, Rest}` back to `parse_entries/2`, which calls `skip_comma(Rest)`. Because the first byte is not `,`, `skip_comma` also returns `Rest` unchanged. `parse_entries` then recurses with the identical buffer:
+  
+  ```erlang
+  parse_entries(Data, Acc)  % Data identical to previous iteration
+  ```
+  
+  Erlang tail recursion never preempts on a pure CPU loop, so the scheduler is pinned and the process never yields or returns.
+  
+  **4. Root cause**
+  
+  `parse_entries/2` has no guard that detects zero-byte progress after a failed `parse_entry` call and no fallback to advance past the offending byte.
+  
+  ### PoC
+  
+  1. Start an HTTP server that responds with the header `Alt-Svc: !` (any single non-token byte suffices).
+  2. Issue any HTTP GET request via hackney to that server:
+     ```erlang
+     hackney:request(get, "http://attacker.example/", [], <<>>, [])
+     ```
+  3. Observe that the call never returns; the Erlang scheduler hosting the connection process is pinned at 100% CPU indefinitely.
+  
+  Alternatively, call the parser directly: `hackney_altsvc:parse(<<"!">>)` — the process hangs immediately.
+  
+  ### Impact
+  
+  Denial of service via unbounded CPU consumption. Any application using hackney 2.0.0-beta.1 through 4.0.0 that connects to attacker-controlled HTTP endpoints is affected. No authentication is required; a single response header byte is sufficient to hang the connection process. Fixed in hackney 4.0.1. CVSS v4.0 score: **8.7 (HIGH)**.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/benoitc/hackney/commit/408e5fe20302226ea8c74dde2bcbd452d712b5b2
+  * Patch commit: https://github.com/benoitc/hackney/commit/e548aba1f97ffa3f4750da7b772998fb78c01894
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-6cp8-v795-jr2j
+link: https://github.com/advisories/GHSA-6cp8-v795-jr2j
+package: hackney
+severity: high
+title: Hackney has an infinite loop on non-token byte at start of an Alt-Svc entry
+vulnerable_version_ranges:
+  - '>= 2.0.0, < 4.0.1'

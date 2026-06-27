@@ -1,0 +1,44 @@
+---
+description: |-
+  ### Summary
+  
+  `hackney_h3:await_response_loop/6` in `src/hackney_h3.erl` accumulates the HTTP/3 response body in memory without any size cap. The `after Timeout` clause is a per-message inactivity timer, not a wall-clock deadline: every received `stream_data` chunk, housekeeping `select` message, or `settings` frame resets it. A malicious HTTP/3 server that drips one small chunk every `Timeout - 1` ms with `Fin = false` and never terminates the stream keeps the loop alive indefinitely while the accumulation buffer grows without bound, eventually exhausting the BEAM process heap.
+  
+  ### Details
+  
+  In `src/hackney_h3.erl`, `await_response_loop/6` (line 430) builds the body with:
+  
+  ```erlang
+  NewBody = <<AccBody/binary, Data/binary>>
+  ```
+  
+  There is no `max_body` check and no monotonic deadline. The `after Timeout` clause at line 463 is restarted on each loop iteration. A server that ensures at least one message arrives within `Timeout` ms indefinitely (one small chunk per interval is sufficient) prevents the timeout from firing while `AccBody` grows linearly. The same module's `wait_connected/3` (lines 388-389) shows the correct pattern: track an absolute start time and pass a shrinking `Remaining` budget into each `receive`. This loop does not.
+  
+  ### Configurations
+  
+  Only the HTTP/3 transport is affected. Applications using the default TCP/TLS hackney transport are not vulnerable. The vulnerability requires using `hackney_h3` directly or passing `{transport, h3}` to `hackney:request/5`.
+  
+  ### PoC
+  
+  1. Stand up an HTTP/3 server that responds with `200 OK` headers (`Fin = false`), then emits a small `stream_data` chunk every `Timeout - margin` ms with `Fin = false` indefinitely.
+  2. Issue `hackney:request(get, Url, [], <<>>, [{transport, h3}])` against it.
+  3. Watch the client process heap grow monotonically. The configured timeout never fires; the process is eventually killed by `max_heap_size` or the OS OOM killer.
+  
+  ### Impact
+  
+  Remote denial of service via unbounded memory consumption. Affects hackney 2.0.0 through 4.0.0 when using the HTTP/3 transport against an attacker-controlled or attacker-influenced server. Each affected request consumes unbounded memory until the BEAM is killed. CVSS v4.0: **8.2 (HIGH)**.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/benoitc/hackney/commit/0334af206d5099fdf510ed9eda18e34396f065ad
+  * Patch commit: https://github.com/benoitc/hackney/commit/3d25f9fea26c90609de9d64366fedfe5065413bc
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-jq4m-q6p2-8gwc
+link: https://github.com/advisories/GHSA-jq4m-q6p2-8gwc
+package: hackney
+severity: high
+title: 'Hackney: Per-chunk timeout with unbounded body accumulation enables slow-drip OOM'
+vulnerable_version_ranges:
+  - '>= 4.0.0, < 4.0.1'

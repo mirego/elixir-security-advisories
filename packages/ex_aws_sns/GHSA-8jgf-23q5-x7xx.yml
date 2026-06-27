@@ -1,0 +1,42 @@
+---
+description: |-
+  ### Summary
+  
+  `ExAws.SNS.verify_message/1` fetches the signing certificate from the `SigningCertURL` field of the incoming SNS message without validating that the URL uses HTTPS or that its host is an AWS-owned SNS certificate domain. An unauthenticated attacker who can POST to any endpoint that calls `verify_message/1` can supply an attacker-controlled `SigningCertURL`, sign a forged SNS message with their own RSA key, and cause the function to return `:ok`, completely bypassing SNS signature verification.
+  
+  ### Details
+  
+  In `lib/ex_aws/sns.ex` (lines 475–483), `verify_message/1` performs three checks: `validate_message_params/1` (confirms required fields are present), `validate_signature_version/1` (confirms `SignatureVersion == "1"`), then signature verification. The signature step calls `ExAws.SNS.PublicKeyCache.get(message["SigningCertURL"])` and passes the result to `:public_key.verify/4`.
+  
+  Neither `validate_message_params/1` nor any other step checks that `SigningCertURL` is an HTTPS URL or that the hostname matches the expected pattern (e.g. `sns.<region>.amazonaws.com`). `PublicKeyCache.get/1` in `lib/ex_aws/sns/public_key_cache.ex` fetches whatever URL is provided and caches the certificate. The RSA signature then verifies against the attacker's own public key, and `verify_message/1` returns `:ok`.
+  
+  ### PoC
+  
+  1. Generate an RSA keypair and host the DER/PEM public certificate at any URL reachable from the target server (e.g. `http://attacker.example/cert.pem`).
+  2. Build a forged `Notification` payload with an arbitrary `TopicArn` and `Message`, compute the canonical string-to-sign per the SNS spec, and sign it with the attacker private key.
+  3. Set `SigningCertURL` to the attacker URL and `Signature` to the base64-encoded signature.
+  4. POST the forged payload to any SNS webhook endpoint that calls `ExAws.SNS.verify_message/1`.
+  5. The function returns `:ok`; the application treats the message as authentic.
+  
+  ### Configurations
+  
+  The application must expose an HTTP endpoint that calls `ExAws.SNS.verify_message/1` on incoming request bodies (the standard SNS webhook pattern).
+  
+  ### Impact
+  
+  Complete SNS signature authentication bypass. Affects `ex_aws_sns` from 2.0.1 through 2.3.4. Consequences include spoofing arbitrary `Notification` payloads, auto-confirming attacker-controlled `SubscribeURL` values to hijack topic delivery, and spoofing `UnsubscribeConfirmation` to disrupt legitimate subscriptions. No authentication or special configuration on the attacker side is required. CVSS v4.0: **8.7 (HIGH)**.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/ex-aws/ex_aws_sns/commit/a7ec21880943f4dac1d59bda557db0ffcd2b61fa
+  * Patch commit: https://github.com/ex-aws/ex_aws_sns/commit/1853d280b152d10384a1e21a22cf22152a60be48
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 2.3.5
+id: GHSA-8jgf-23q5-x7xx
+link: https://github.com/advisories/GHSA-8jgf-23q5-x7xx
+package: ex_aws_sns
+severity: high
+title: 'ex_aws_sns: Trusted-attacker `SigningCertURL` permits complete SNS signature bypass'
+vulnerable_version_ranges:
+  - '>= 2.0.1, < 2.3.5'

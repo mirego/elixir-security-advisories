@@ -1,0 +1,44 @@
+---
+description: |-
+  ### Summary
+  
+  `hackney_url:normalize/2` URL-decodes the host component of a parsed URL, but the caller's SSRF allowlist runs before normalization using OTP's `uri_string:parse/1` and `inet:parse_address/1`, neither of which decodes percent-escapes in hostnames. A URL like `http://%31%32%37%2E%30%2E%30%2E%31/` presents an encoded, non-IP-looking host to the validator, which passes the allowlist check; hackney's normalizer then decodes it to `127.0.0.1` and connects to loopback. Because `hackney:request/5` always calls `normalize/2` with no opt-out, every request path that accepts a binary or list URL is affected. This is a parser-differential SSRF in the same class as CVE-2025-1211, but in a different function.
+  
+  ### Details
+  
+  In `src/hackney_url.erl` (lines 161–186), `normalize/2` checks whether the parsed host is already a dotted-quad or IPv6 literal via `inet_parse:address/1`. Percent-encoded forms like `%31%32%37%2E%30%2E%30%2E%31` fail that check and fall into the catch-all branch, where `urldecode/1` decodes the host before passing it to IDNA conversion:
+  
+  ```erlang
+  Host1 = binary_to_list(
+             urldecode(unicode:characters_to_binary(Host0))
+           ),
+  ```
+  
+  The decoded host (`"127.0.0.1"`) replaces the original in the returned `#hackney_url{}` record. `hackney:request/5` at `src/hackney.erl:463` always calls `normalize/2`, so the decoded host is what `do_dispatch/1` and `add_host_header/2` ultimately use. The on-wire `Host:` header and the TCP connect target both reflect the decoded value.
+  
+  The same payload pattern reaches the AWS/GCP/Azure IMDS (`169.254.169.254`), RFC1918 ranges, and any `localhost` admin endpoint. The 1.21.0 patch for CVE-2025-1211 fixed a separate differential in `parse_url/1` and did not touch `normalize/2`.
+  
+  ### PoC
+  
+  1. Validate the URL with the canonical Erlang SSRF allowlist: `uri_string:parse/1` returns host `<<"%31%32%37%2E%30%2E%30%2E%31">>`, `inet:parse_address/1` returns `{error, einval}`, so the allowlist accepts it.
+  2. Pass the same URL to `hackney:get/1`.
+  3. hackney's `normalize/2` decodes the host to `"127.0.0.1"` and connects to `127.0.0.1:80`. The internal service receives the request with `Host: 127.0.0.1`.
+  
+  ### Impact
+  
+  Unauthenticated SSRF bypassing the canonical Erlang allowlist pattern. Affects hackney 0.13.0 through 4.0.0 for any application that accepts attacker-supplied URLs. Targets include cloud IMDS endpoints, `localhost` admin interfaces, and RFC1918 backends. CVSS v4.0: **6.9 (MEDIUM)**.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/benoitc/hackney/commit/4d725507588942fd00efca15b86da3273656510a
+  * Patch commit: https://github.com/benoitc/hackney/commit/452620a92ec1da2e6b4862a049a2a4f04b42068f
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-pj7v-xfvx-wmjq
+link: https://github.com/advisories/GHSA-pj7v-xfvx-wmjq
+package: hackney
+severity: moderate
+title: Hackney has SSRF allowlist bypass in hackney_url:normalize/2 via percent-encoded host
+vulnerable_version_ranges:
+  - '>= 0.13.0, < 4.0.1'

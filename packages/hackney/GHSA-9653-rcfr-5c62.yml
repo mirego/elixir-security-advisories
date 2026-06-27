@@ -1,0 +1,52 @@
+---
+description: |-
+  ### Summary
+  
+  [CVE-2026-47067](https://nvd.nist.gov/vuln/detail/CVE-2026-47067) is an atom table exhaustion vulnerability (CWE-770) in hackney's URL parser (`src/hackney_url.erl`). `hackney_url:parse_url/1` converts every URL scheme it encounters into a BEAM atom via `binary_to_atom/2`. Because BEAM atoms are never garbage-collected and the atom table has a hard limit of 1,048,576 entries, an attacker who can feed URLs with attacker-chosen scheme prefixes — directly as request targets, as webhook/callback URLs, or via `Location` headers in redirect chains — can exhaust the atom table and crash the entire BEAM VM with `system_limit`.
+  
+  ### Details
+  
+  **1. Scheme extraction and conversion**
+  
+  In `src/hackney_url.erl`, `parse_url/1` extracts the scheme binary (the part before `://`), validates it with `is_valid_scheme/1` (RFC 3986 alphabet: alpha-led, `<=19` bytes, alphanumeric/`+`/`-`/`.` body), lowercases it, then calls:
+  
+  ```erlang
+  binary_to_atom(SchemeLower, utf8)
+  ```
+  
+  The resulting atom is stored on the `#hackney_url{}` record and returned to the caller.
+  
+  **2. Permanent atom accumulation**
+  
+  The validation constrains the alphabet but not uniqueness. The allowed scheme space is enormous (≈52·65¹⁸ values), far exceeding the default atom limit of 1,048,576. Each distinct scheme mints a new permanent atom. Even when hackney subsequently rejects an unsupported scheme with `{error, {unsupported_scheme, _}}`, the atom has already been interned and is never reclaimed.
+  
+  **3. Crash vector**
+  
+  The most dangerous path is redirect following: when hackney follows a `Location` header, the redirect target URL is re-parsed by the same function. An attacker-controlled server can serve a sequence of redirects — or a batch of URLs from an upstream feed — each with a fresh unique scheme, driving the atom count monotonically upward. At the limit the BEAM emits `system_limit` and the node terminates; recovery requires a full restart.
+  
+  ### PoC
+  
+  1. Call `hackney_url:parse_url/1` (or `:hackney.request/5`) repeatedly with URLs whose scheme prefixes are unique on each call: `aaaa://x`, `aaab://x`, `aaac://x`, …
+  2. After enough iterations, observe `erlang:system_info(:atom_count)` climbing by one per unique scheme.
+  3. At 1,048,576 atoms the VM crashes with `system_limit`.
+  
+  Alternatively, point hackney at a server that replies with a feed of ~1M URLs with distinct schemes (or uses redirect chains with rotating schemes); the atom table is exhausted and the node crashes without the client being able to intervene.
+  
+  ### Impact
+  
+  Unauthenticated remote denial of service via permanent resource exhaustion leading to VM termination. Any application using hackney 2.0.0 through 4.0.0 that processes attacker-influenced URLs — direct request targets, webhook URLs, or `Location` headers in followed redirects — is affected. No authentication or special configuration is required. CVSS v4.0 score: **8.7 (HIGH)**.
+  
+  ## References
+  
+  * Introduction commit: https://github.com/benoitc/hackney/commit/d9713695c0d99855d12c73fd8a0b4be0543950c4
+  * Patch commit: https://github.com/benoitc/hackney/commit/31f6f0e27e096ad88743dfded4f030a3ee74972e
+disclosure_date: 2026-06-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-9653-rcfr-5c62
+link: https://github.com/advisories/GHSA-9653-rcfr-5c62
+package: hackney
+severity: high
+title: Hackney vulnerable to atom-table exhaustion via unrecognized URL schemes
+vulnerable_version_ranges:
+  - '>= 2.0.0, < 4.0.1'
