@@ -1,0 +1,20 @@
+---
+description: |-
+  ## Duplicate Advisory
+  
+  This advisory has been withdrawn because it is a duplicate of GHSA-jq4m-q6p2-8gwc. This link is maintained to preserve external references.
+  
+  ## Original Description
+  Allocation of Resources Without Limits or Throttling vulnerability in benoitc hackney allows Flooding. hackney_h3:await_response_loop/6 accumulates the HTTP/3 response body in memory without any size cap. The after Timeout clause is a per-message inactivity timer that resets on every received chunk, housekeeping message, or settings frame — it is not a wall-clock deadline. A malicious HTTP/3 server that emits one small chunk every Timeout - 1 ms with Fin = false and never sends a final frame keeps the loop alive indefinitely while the accumulation buffer grows linearly without bound, eventually exhausting the BEAM process heap and causing an out-of-memory condition.
+  
+  This issue affects hackney: from 2.0.0 before 4.0.1.
+disclosure_date: 2026-05-26
+first_patched_versions:
+  - 4.0.1
+id: GHSA-76v6-f83q-pxvh
+link: https://github.com/advisories/GHSA-76v6-f83q-pxvh
+package: hackney
+severity: high
+title: 'Duplicate Advisory: Hackney has an Allocation of Resources Without Limits or Throttling vulnerabilit'
+vulnerable_version_ranges:
+  - '>= 2.0.0, < 4.0.1'

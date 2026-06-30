@@ -41,4 +41,4 @@ package: hackney
 severity: high
 title: 'Hackney: Per-chunk timeout with unbounded body accumulation enables slow-drip OOM'
 vulnerable_version_ranges:
-  - '>= 4.0.0, < 4.0.1'
+  - '>= 2.0.0, < 4.0.1'

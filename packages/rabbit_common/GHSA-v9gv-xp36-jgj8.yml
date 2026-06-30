@@ -1,0 +1,47 @@
+---
+description: |-
+  ### Impact
+  
+  Shovel and Federation plugins perform URI obfuscation in their worker (link) state. The encryption key used to encrypt
+  the URI was seeded with a predictable secret.
+  
+  This means that in case of certain exceptions related to Shovel and Federation plugins,
+  reasonably easily deobfuscatable data could appear in the node log.
+  
+  Patched versions correctly use a cluster-wide secret for that purpose.
+  
+  ### Patches
+  
+  Patched versions:
+  
+   * `3.10.2`
+   * `3.9.18`
+   * `3.8.32`
+  
+  ### Workarounds
+  
+  Disable Shovel and Federation plugins.
+  
+  ### Credits
+  
+  RabbitMQ core team would like to thank Lajos @luos Gerecs and Anh Nguyen from Erlang Solutions
+  for responsibly disclosing and working with us on a patch for this vulnerability.
+  
+  ### For more information
+  
+   * [Mailing list](https://groups.google.com/forum/#!forum/rabbitmq-users)
+   * [Community Slack](https://rabbitmq-slack.herokuapp.com/)
+disclosure_date: 2026-06-30
+first_patched_versions:
+  - 3.8.32
+  - 3.9.18
+  - 3.10.2
+id: GHSA-v9gv-xp36-jgj8
+link: https://github.com/advisories/GHSA-v9gv-xp36-jgj8
+package: rabbit_common
+severity: moderate
+title: RabbitMQ has predictable credential obfuscation seed value used in Shovel and Federation plugins
+vulnerable_version_ranges:
+  - '>= 3.8.0, < 3.8.32'
+  - '>= 3.9.0, < 3.9.18'
+  - '>= 3.10.0, < 3.10.2'

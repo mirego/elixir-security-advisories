@@ -1,0 +1,38 @@
+---
+description: |-
+  ### Summary
+  
+  `oban_web` 2.12.0 introduced a cron expression parser that expands `-`-separated ranges without validating the endpoints. An attacker with access to schedule cron jobs can submit a malicious expression; when any user with dashboard access views the cron job list, `Oban.Web.CronExpr.describe/1` is called to render it, triggering allocation of gigabytes of memory and stalling or crashing the BEAM node.
+  
+  ### Details
+  
+  **1. Scheduling:** The attacker submits a cron job with a malicious expression such as `"0 0 1-100000000 * *"`. No special privilege is required beyond the ability to schedule cron jobs.
+  
+  **2. Parsing:** When the cron list is rendered in the dashboard, `describe/1` calls `parse_range/1` in `lib/oban/web/cron_expr.ex`, which calls `Integer.parse/1` on both endpoints of the range with no bounds check, returning `{:range, start_val, end_val}` for any integers.
+  
+  **3. Eager expansion:** `expand_dom_parts/1` and `expand_dow_parts/1` materialise the range via `Enum.to_list(start_val..end_val)`. The input above produces ~100 million integers (~2.4 GB). A sibling helper `extract_dom_values` already validates range bounds, but the expansion helpers do not.
+  
+  ### PoC
+  
+  1. Schedule a cron job with expression `"0 0 1-100000000 * *"` (or any expression with an out-of-domain range).
+  2. Have any user with Oban.Web dashboard access navigate to the cron job list.
+  3. The dashboard calls `describe/1` to render the expression, exhausting BEAM memory and crashing the node.
+  
+  ### Impact
+  
+  CVSS 4.0 score 5.9 (Medium). Affects `oban_web` >= 2.12.0. Requires the ability to schedule a cron job and a dashboard user to view the cron list; no further privileges are needed.
+  
+  ### References
+  
+  * Introduction commit: https://github.com/oban-bg/oban_web/commit/a97c7960bb389b05aaab4cf8042985f02ceddc24
+  * Patch commit: https://github.com/oban-bg/oban_web/commit/9998b7e284e02fdd4645dd6231760038e63b584d
+disclosure_date: 2026-06-30
+first_patched_versions:
+  - 2.12.5
+id: GHSA-6xh2-93p9-vqh4
+link: https://github.com/advisories/GHSA-6xh2-93p9-vqh4
+package: oban_web
+severity: moderate
+title: 'oban_web: Unbounded range expansion in cron describe causes memory exhaustion'
+vulnerable_version_ranges:
+  - '>= 2.12.0, < 2.12.5'

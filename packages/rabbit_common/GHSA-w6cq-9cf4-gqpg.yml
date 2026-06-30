@@ -1,0 +1,30 @@
+---
+description: |-
+  ### Summary
+  
+  Responsibly disclosed by @NSEcho.
+  
+  HTTP API did not enforce an HTTP request body limit, making it vulnerable for DoS attacks with very large messages. 
+  
+  ### Details
+  
+  An authenticated user with sufficient credentials can publish a very large messages over the HTTP API
+  and cause target node to be terminated by an "out-of-memory killer"-like mechanism.
+  
+  A PoC was provided to Team RabbitMQ privately.
+  
+  ### Impact
+  
+  Denial of Service
+disclosure_date: 2026-06-30
+first_patched_versions:
+  - 3.11.24
+  - 3.12.7
+id: GHSA-w6cq-9cf4-gqpg
+link: https://github.com/advisories/GHSA-w6cq-9cf4-gqpg
+package: rabbit_common
+severity: moderate
+title: RabbitMQ vulnerable to Denial of Service by publishing large messages over the HTTP API
+vulnerable_version_ranges:
+  - '>= 3.11.0, < 3.11.24'
+  - '>= 3.12.0, < 3.12.7'
