@@ -1,0 +1,41 @@
+---
+description: |-
+  ### Summary
+  
+  Mint's HTTP/2 client accumulates `CONTINUATION` header-block fragments into a per-connection buffer with no cap on size or frame count. A malicious or compromised HTTP/2 server can drive the client's memory to arbitrary size by streaming an endless chain of `CONTINUATION` frames after a `HEADERS` frame that omits `END_HEADERS`, causing memory exhaustion and BEAM process death. A single connection to an attacker-controlled HTTP/2 endpoint is sufficient.
+  
+  ### Details
+  
+  When Mint's HTTP/2 receive path observes a `HEADERS` frame without the `END_HEADERS` flag, `'Elixir.Mint.HTTP2':handle_headers/3` parks the unparsed header-block fragment in `conn.headers_being_processed`. Every subsequent `CONTINUATION` frame on that stream is then appended to the accumulator by `'Elixir.Mint.HTTP2':handle_continuation/3`.
+  
+  Nothing in the receive path bounds this accumulator: there is no per-stream size cap, no `CONTINUATION` frame-count cap, and `max_header_list_size` is only enforced on outgoing requests (its default is `:infinity`, and the only enforcement helper inspects `server_settings` for request encoding, never inbound header blocks). Each `CONTINUATION` payload can be up to the peer-advertised `SETTINGS_MAX_FRAME_SIZE`, so the attacker can grow `headers_being_processed` to arbitrary size at line rate.
+  
+  ### PoC
+  
+  1. Stand up a raw TCP server that speaks the HTTP/2 handshake.
+  2. After the client's request `HEADERS` arrives, respond with a `HEADERS` frame on stream 1 with `flags = 0` (no `END_HEADERS`, no `END_STREAM`) and an empty header-block fragment.
+  3. Stream `CONTINUATION` frames on stream 1, each with `flags = 0` and a payload up to `SETTINGS_MAX_FRAME_SIZE`. Never set `END_HEADERS`.
+  4. The client's process memory grows linearly with the flood and the BEAM process eventually crashes with OOM.
+  
+  ### Impact
+  
+  Remote, unauthenticated denial-of-service against any process using Mint as an HTTP/2 client against an untrusted or attacker-influenced server. A single connection is sufficient to drive memory to arbitrary size and crash the BEAM process. The default Mint configuration is vulnerable; no client-side opt-in is required. Scored CVSS v4.0 8.2 (HIGH).
+  
+  ## Workarounds
+  
+  Restrict Mint to HTTP/1 on connections to untrusted servers by passing `protocols: [:http1]` to `'Elixir.Mint.HTTP':connect/4`. This avoids the vulnerable HTTP/2 receive path entirely, at the cost of losing HTTP/2 for those connections.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/elixir-mint/mint/commit/596ca4304504be68939c4929e0831557097962b8
+  * Patch commit: https://github.com/elixir-mint/mint/commit/b662d127d3028b5426c88d4c9cc7fe430491a10b
+disclosure_date: 2026-07-09
+first_patched_versions:
+  - 1.9.0
+id: GHSA-2p26-p43x-fhp8
+link: https://github.com/advisories/GHSA-2p26-p43x-fhp8
+package: mint
+severity: high
+title: 'mint: Unbounded CONTINUATION/HEADERS frame accumulation (CONTINUATION flood)'
+vulnerable_version_ranges:
+  - < 1.9.0

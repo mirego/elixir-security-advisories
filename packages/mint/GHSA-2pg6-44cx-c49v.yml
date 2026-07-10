@@ -1,0 +1,36 @@
+---
+description: |-
+  ### Summary
+  
+  Mint's HTTP/1 request encoder splices the caller-supplied `method` and `target` directly into the request line without character validation. An application that forwards attacker-controlled input as the HTTP method or the target to `Mint.HTTP.request/5` is exposed to request-line CRLF injection, allowing the attacker to terminate the request line early, inject arbitrary headers, and pipeline a fully attacker-chosen second request onto the same TCP connection.
+  
+  ### Details
+  
+  `encode_request_line/2` in `lib/mint/http1/request.ex` writes `method` and `target` to the wire verbatim. `encode_headers/1` validates header names and values, but there is no equivalent `validate_method!/1`.
+  
+  Mint 1.7.0 added `validate_request_target/2`, which rejects CRLF and other control characters in `target` by default and closes the path/query vector. The `method` field remains unvalidated, so a CRLF-bearing method such as `"GET / HTTP/1.1\r\nX-Smuggled: 1\r\nGET /admin"` is accepted and written to the socket as-is. Bytes after the first `\r\n` are interpreted by the peer as an injected header, or, with a second `\r\n`, as an additional pipelined request.
+  
+  ### PoC
+  
+  1. Stand up a Mint-using gateway/proxy that calls `Mint.HTTP.request(conn, method, "/", [], nil)` with `method` taken from caller input.
+  2. Send a request whose forwarded method is `"GET / HTTP/1.1\r\nX-Smuggled-Header: pwned\r\nGET /admin/delete-everything"`.
+  3. Observe the bytes received by the upstream server: the smuggled header line and the second request line appear verbatim in the outbound stream.
+  
+  ### Impact
+  
+  CRLF injection / HTTP request smuggling in the HTTP/1 client encoder, exploitable under default configuration whenever an application passes caller-influenced input as the HTTP method. An attacker who controls the method can inject arbitrary outbound headers (forged `Host`, `Authorization`, cache-poisoning headers) and smuggle additional, fully attacker-chosen requests to the upstream server over the same connection, potentially reaching endpoints the legitimate caller never intended to invoke.
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/elixir-mint/mint/commit/8db1acff30b6a9433762c18b1e1f891b8c1f74f7
+  * Patch commit: https://github.com/elixir-mint/mint/commit/fad091454cbb7449b19edb8e1fee12ca7cf28c3a
+disclosure_date: 2026-07-09
+first_patched_versions:
+  - 1.9.0
+id: GHSA-2pg6-44cx-c49v
+link: https://github.com/advisories/GHSA-2pg6-44cx-c49v
+package: mint
+severity: low
+title: mint has potential CRLF injection in its HTTP request line via unvalidated `method`/`target`
+vulnerable_version_ranges:
+  - < 1.9.0

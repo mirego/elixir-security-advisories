@@ -1,0 +1,39 @@
+---
+description: |-
+  ### Summary
+  
+  Any Tesla client pipeline that includes `Tesla.Middleware.DecompressResponse` or `Tesla.Middleware.Compression` eagerly decompresses HTTP response bodies with no size limit. A server under attacker control (or reached via a redirect) can return a tiny gzip-encoded payload that expands into gigabytes of BEAM heap, crashing or freezing the calling process. Stacking multiple `content-encoding` tokens multiplies the amplification exponentially.
+  
+  ### Details
+  
+  `decompress_body/2` in `lib/tesla/middleware/compression.ex` passes the full response body to `:zlib.gunzip/1` or `:zlib.unzip/1` with no cap on output size. The list of codec tokens comes from splitting the `content-encoding` header on commas, and `decompress_body/2` recurses once per token. A response advertising `content-encoding: gzip, gzip, gzip, gzip` triggers four recursive decompression passes. Each gzip layer can expand its input roughly 1000x, so a 284-byte wire payload with four layers inflates to approximately 1 GB at the innermost pass, all materialised as a single binary in the caller's heap.
+  
+  ### PoC
+  
+  1. Serve an HTTP response with `content-encoding: gzip, gzip, gzip, gzip` where the body is a 1 GB block of zeros compressed through four successive gzip passes.
+  2. Send that response to a Tesla client whose pipeline includes `Tesla.Middleware.DecompressResponse`.
+  3. `decompress_body/2` recurses four times without any size check, materialising ~1 GB in the calling process's heap.
+  4. Repeated or sufficiently large requests exhaust available memory and crash or freeze the node.
+  
+  ### Impact
+  
+  High severity (CVSS v4.0: 8.2). Any application using `tesla` 0.6.0 through 1.18.2 with `Tesla.Middleware.DecompressResponse` or `Tesla.Middleware.Compression` in its pipeline is vulnerable. The attacker only needs to control a server the client contacts, including via redirects. Fixed in tesla 1.18.3.
+  
+  ### Configurations
+  
+  The application must include `Tesla.Middleware.DecompressResponse` or `Tesla.Middleware.Compression` in its Tesla middleware pipeline.
+  
+  ### Resources
+  
+  * Introduction commit: https://github.com/elixir-tesla/tesla/commit/5bd90bb5cf0d15e375edc2a66fa322292940fce2
+  * Patch commit: https://github.com/elixir-tesla/tesla/commit/340f75b5d191dc747ef7ac6365bd002d1cd55a9d
+disclosure_date: 2026-07-10
+first_patched_versions:
+  - 1.18.3
+id: GHSA-mc85-72gr-vm9f
+link: https://github.com/advisories/GHSA-mc85-72gr-vm9f
+package: tesla
+severity: high
+title: Tesla has decompression bomb on response body
+vulnerable_version_ranges:
+  - '>= 0.6.0, < 1.18.3'

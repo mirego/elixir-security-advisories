@@ -1,0 +1,40 @@
+---
+description: |-
+  ### Summary
+  
+  `Tesla.Multipart.add_content_type_param/2` appends caller-supplied strings to the multipart `Content-Type` header with no validation. A param value containing `\r\n` splits the header line, allowing an attacker who controls any content-type parameter (charset, boundary parameter, etc.) to inject arbitrary headers into the outbound HTTP request.
+  
+  ### Details
+  
+  `add_content_type_param/2` in `lib/tesla/multipart.ex` stores the supplied string directly in `multipart.content_type_params` without any CR/LF check. `headers/1` then joins all params with `"; "` and appends the result verbatim to the `Content-Type` header value. Because HTTP headers are delimited by `\r\n`, a param containing that sequence breaks out of the header field and introduces new header lines before the adapter writes the request to the socket.
+  
+  The precondition is that untrusted input reaches `add_content_type_param/2`, which is the normal pattern for applications that accept user-supplied charset values, file type parameters, or any other content-type extension fields.
+  
+  ### PoC
+  
+  1. Call `Tesla.Multipart.add_content_type_param/2` with a value containing `\r\nX-Injected: pwned`.
+  2. Pass the resulting `Multipart` struct as the request body via any Tesla adapter.
+  3. The raw request on the wire contains `X-Injected: pwned` as a standalone header line.
+  
+  ### Impact
+  
+  Low severity (CVSS v4.0: 2.1). Any application using `tesla` 0.8.0 through 1.18.2 that passes untrusted input into `Tesla.Multipart.add_content_type_param/2` is affected. Consequences range from forging arbitrary outbound request headers to potential request smuggling against the upstream server. Fixed in tesla 1.18.3.
+  
+  ### Workarounds
+  
+  Validate content-type parameter strings before passing them to `Tesla.Multipart.add_content_type_param/2`, rejecting any value that contains `\r` or `\n`.
+  
+  ### Reesources
+  
+  * Introduction commit: https://github.com/elixir-tesla/tesla/commit/6ebfdb9abe9c6f119408045b933d82462decd351
+  * Patch commit: https://github.com/elixir-tesla/tesla/commit/23601edac5d22ba9407b427967b5bdbda201aec2
+disclosure_date: 2026-07-10
+first_patched_versions:
+  - 1.18.3
+id: GHSA-q7jx-v53g-848w
+link: https://github.com/advisories/GHSA-q7jx-v53g-848w
+package: tesla
+severity: low
+title: Tesla has CRLF injection in request `Content-Type` header via `add_content_type_param`
+vulnerable_version_ranges:
+  - '>= 0.8.0, < 1.18.3'

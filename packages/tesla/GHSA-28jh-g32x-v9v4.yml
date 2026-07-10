@@ -1,0 +1,40 @@
+---
+description: |-
+  ### Summary
+  
+  `Tesla.Multipart.part_headers_for_disposition/1` interpolates `Content-Disposition` parameter values (field name, filename, and other opts) verbatim into the part header line without encoding or escaping any special characters. An attacker who controls a filename, field name, or other disposition parameter can use unescaped double-quotes to inject extra disposition key-value pairs, or CRLF sequences to inject additional part headers or prepend bytes to the part body.
+  
+  ### Details
+  
+  `part_headers_for_disposition/1` in `lib/tesla/multipart.ex` formats each disposition parameter as `k="v"` with no sanitization. Values flow in from `add_field/4` (the `name` argument), `add_file/3` and `add_file_content/4` (the `filename` argument and any disposition opts). A `"` in the value closes the quoted parameter early, allowing extra `; key="value"` pairs to be appended. A `\r\n` ends the `Content-Disposition` header line entirely, with subsequent bytes interpreted as additional part headers (e.g. a forged `Content-Type`); a second `\r\n` ends the whole part header block and prepends attacker bytes to the part body.
+  
+  The default-filename path in `add_file/3` derives the name via `Path.basename/1`, which does not strip CR or LF, so any code that forwards a partially attacker-controlled file path is equally vulnerable.
+  
+  ### PoC
+  
+  1. Call `Tesla.Multipart.add_file_content/4` with a filename containing `\r\nX-Injected: evil`.
+  2. POST the multipart body to any upstream via any Tesla adapter.
+  3. The upstream receives `X-Injected: evil` as a standalone header line on the affected part.
+  
+  ### Impact
+  
+  Low severity (CVSS v4.0: 2.1). Any application using `tesla` 0.8.0 through 1.18.2 that passes untrusted input into `add_field/4`, `add_file/3`, or `add_file_content/4` disposition parameters is affected. Consequences range from forging part-level headers to body prepending against lenient multipart parsers. Fixed in tesla 1.18.3.
+  
+  ### Workarounds
+  
+  Validate disposition parameter values before passing them to the multipart API, rejecting any value that contains `\r`, `\n`, or `"`.
+  
+  ### Resources
+  
+  * Introduction commit: https://github.com/elixir-tesla/tesla/commit/6ebfdb9abe9c6f119408045b933d82462decd351
+  * Patch commit: https://github.com/elixir-tesla/tesla/commit/bb1a2c3da2775924d96e3db8e315dcc4d5d2246e
+disclosure_date: 2026-07-10
+first_patched_versions:
+  - 1.18.3
+id: GHSA-28jh-g32x-v9v4
+link: https://github.com/advisories/GHSA-28jh-g32x-v9v4
+package: tesla
+severity: low
+title: Tesla vulnerable to multipart part smuggling via unescaped `content-disposition` values
+vulnerable_version_ranges:
+  - '>= 0.8.0, < 1.18.3'
