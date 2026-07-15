@@ -1,0 +1,41 @@
+---
+description: |-
+  ### Summary
+  
+  Unbounded recursion depth in `Protobuf.Decoder` (Hex package `protobuf`, versions `>= 0.8.0, < 0.16.1`) lets an unauthenticated attacker crash any service that decodes untrusted protobuf messages whose schema contains a self-referential or cyclic message type. A small request body (a few KB to a few MB) that nests an embedded field hundreds of thousands to millions of levels deep forces the BEAM to recurse once per level, exhausting memory and pinning a scheduler. A handful of such requests can take the node offline (a request-amplification denial of service).
+  
+  ### Details
+  
+  `Protobuf.Decoder.value_for_field/3` handles embedded message fields in its `embedded?: true` branch at `lib/protobuf/decoder.ex:218-243`. For an embedded field it calls `decode(bin, type)` recursively, which re-enters `build_message → handle_value → value_for_field`. The recursive call is not in tail position (its result is consumed by the surrounding decode after it returns), so every nesting level retains a live frame on the process stack and heap.
+  
+  There is no recursion-depth counter anywhere in the decoder. For any schema with a self-referential message type (e.g. `message Tree { Tree child = 1; }`, a common shape for comment threads, org charts, file trees, and ASTs) or any cycle of message types, the attacker controls the nesting depth entirely through the input bytes. Each additional level costs only a 1-byte field tag plus a varint length prefix, so depth grows roughly inversely with payload size: a tiny body buys an enormous recursion depth.
+  
+  Reference protobuf implementations (Google's C++, Java, etc.) cap recursion at 100 specifically to prevent this. The Elixir decoder enforces no comparable bound, so the recursion continues until the process exhausts memory, blows the stack, or starves the scheduler doing GC over the deep structure.
+  
+  The fix threads a depth counter through `decode / build_message / handle_value / value_for_field` (or holds it in the process dictionary for the duration of the top-level `decode`) and raises `Protobuf.DecodeError` once it exceeds a configurable limit, defaulting to 100 to match the reference implementations.
+  
+  ### PoC
+  
+  1. Define a self-referential schema: `defmodule Tree do use Protobuf, syntax: :proto3; field(:child, 1, type: Tree) end`.
+  2. Build a wire-format body inner-to-outer: at each of `depth` levels prepend `<<0x0A, length_varint(inner_size), inner>>` (tag `0x0A` = field 1, wire type 2). Use an iolist with a running byte-size to keep generation O(depth).
+  3. POST the body (a few MB at `depth = 1_000_000`) as `application/x-protobuf` to any endpoint that calls `Tree.decode/1`.
+  4. The non-tail `decode(bin, type)` in `value_for_field/3` re-enters once per nesting level, accumulating a frame per level. The decode burns seconds of CPU and hundreds of MB on the victim node; a few concurrent requests exhaust it.
+  
+  ### Impact
+  
+  Unauthenticated, network-reachable request-amplification denial of service against any service that decodes attacker-influenced protobuf bytes into a self-referential or cyclic message type. A single small request can consume seconds of CPU and hundreds of MB of memory on the victim; a few concurrent requests can take the node offline. 
+  
+  ## Resources
+  
+  * Introduction commit: https://github.com/elixir-protobuf/protobuf/commit/21ec7c5bec4fec74e10c1de0d5d1a2d8152ac5d4
+  * Patch commit: https://github.com/elixir-protobuf/protobuf/commit/b8efa97790eece3d2d0e8e7c31a45ed409fe5338
+disclosure_date: 2026-07-15
+first_patched_versions:
+  - 0.16.1
+id: GHSA-rv48-qqj5-crxg
+link: https://github.com/advisories/GHSA-rv48-qqj5-crxg
+package: protobuf
+severity: high
+title: 'Protobuf: Unbounded recursion depth in embedded-message decoding'
+vulnerable_version_ranges:
+  - '>= 0.8.0, < 0.16.1'
