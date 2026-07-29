@@ -1,0 +1,19 @@
+---
+description: |-
+  Origin Validation Error vulnerability in ninenines gun (gun_http2 module) allows cross-origin cookie injection via unvalidated HTTP/2 PUSH_PROMISE authority.
+  
+  In gun_http2:push_promise_frame/7, the :authority pseudo-header from an incoming PUSH_PROMISE frame is stored verbatim into the promised stream record without checking that it matches the connection's origin. When gun_http2:headers_frame/9 later processes the response headers for the promised stream, it calls gun_cookies:set_cookie_header/7 with the unvalidated server-supplied authority before any status branching and before user code can act. This violates RFC 7540 §10.6 / RFC 9113 §8.4, which require receivers to treat as a protocol error any push for a resource the server is not authoritative for.
+  
+  A malicious or compromised HTTP/2 server can plant cookies scoped to arbitrary third-party domains into the client's shared cookie store. This enables session fixation attacks against those domains and, if the planted cookie overrides a legitimate session token, may result in account takeover. No user interaction beyond making a normal HTTP/2 request to the attacker-controlled server is required.
+  
+  This issue affects gun: from 2.0.0 before 2.4.0.
+disclosure_date: 2026-06-08
+first_patched_versions:
+  - 2.4.0
+id: GHSA-36w4-95hv-5vwg
+link: https://github.com/advisories/GHSA-36w4-95hv-5vwg
+package: gun
+severity: moderate
+title: gun_http2 has an Origin Validation Error vulnerability
+vulnerable_version_ranges:
+  - '>= 2.0.0, < 2.4.0'

@@ -1,0 +1,19 @@
+---
+description: |-
+  Unexpected Status Code or Return Value vulnerability in ninenines gun (gun_http module) allows a malicious HTTP server to force the client into raw protocol mode via an unsolicited 101 Switching Protocols response.
+  
+  In gun_http:handle_inform/8, when a 101 Switching Protocols response is received over HTTP/1.1, the function verifies only that the Upgrade header is syntactically valid and that the stream reference is a plain reference(). It does not check whether the client ever sent an Upgrade or Connection: upgrade header on the corresponding request. Because this check is absent, any 101 response (solicited or not) causes gun to dispatch a gun_upgrade message to the caller and transition the entire connection to raw protocol mode.
+  
+  A malicious or compromised HTTP server can send an unsolicited 101 response to any HTTP/1.1 request, causing the gun client to abandon HTTP framing for that connection. Once in raw mode, gun_raw applies no flow control (flow=infinity) and re-arms socket active mode after every received packet, so the server can flood the client with arbitrary bytes. These are forwarded as unbounded gun_data messages to the owner process, exhausting its mailbox and BEAM memory, ultimately crashing the VM.
+  
+  This issue affects gun: from 2.0.0 before 2.4.0.
+disclosure_date: 2026-06-08
+first_patched_versions:
+  - 2.4.0
+id: GHSA-2j82-37xg-f9wp
+link: https://github.com/advisories/GHSA-2j82-37xg-f9wp
+package: gun
+severity: high
+title: gun has an Unexpected Status Code or Return Value vulnerability
+vulnerable_version_ranges:
+  - '>= 2.0.0, < 2.4.0'

@@ -1,0 +1,31 @@
+---
+description: |-
+  ### Summary
+  
+  Req's multipart form encoder interpolates the per-part `name`, `filename`, and `content_type` directly into the part headers without escaping. An attacker who can influence any of those values can inject CRLF-separated header lines, smuggle additional form fields, or prepend a whole extra part into the request the victim service sends downstream.
+  
+  ### Details
+  
+  `Req.Utils.encode_form_part/2` in `lib/req/utils.ex` builds the per-part header iodata by concatenating the three caller-supplied strings verbatim into `content-disposition: form-data; name="<name>"; filename="<filename>"` and `content-type: <content_type>`. There is no CRLF stripping, no quote escaping, and no validation. A value containing `"\r\n` closes the surrounding quoted value and starts a new header line; an additional `\r\n--<boundary>` terminates the current part and lets the attacker prepend a smuggled part.
+  
+  The flaw is reachable through every supported way of supplying a part. It is especially easy to hit when `value` is a `%File.Stream{}`, because `filename` then defaults to `Path.basename(stream.path)` and POSIX filenames may legitimately contain `\r` and `\n`. RFC 7578 / WHATWG form-data requires percent-encoding `"`, CR, and LF in these fields; the fix adopts that behavior.
+  
+  ### PoC
+  
+  1. Construct a malicious `filename` such as `harmless.txt"\r\nX-Smuggled: marker\r\nContent-Disposition: form-data; name="pwned`.
+  2. Call `Req.post!(url, form_multipart: [upload: {"benign body", filename: <malicious>, content_type: "text/plain"}])`.
+  3. The emitted multipart body contains a real `X-Smuggled:` header line and an extra `Content-Disposition` for `name="pwned"`, alongside Req's legitimate headers.
+  
+  ### Impact
+  
+  HTTP request smuggling / multipart parameter smuggling in the HTTP client. Any application using Req to send `form_multipart` requests where any of `name`, `filename`, or `content_type` can be influenced by an untrusted source is affected, most commonly upload proxies and re-uploaders that derive `filename` from `Path.basename/1` on a user-controlled path.
+disclosure_date: 2026-07-29
+first_patched_versions:
+  - 0.6.0
+id: GHSA-px9f-whj3-246m
+link: https://github.com/advisories/GHSA-px9f-whj3-246m
+package: req
+severity: moderate
+title: Req vulnerable to multipart form-data header injection via unescaped name/filename/content_type
+vulnerable_version_ranges:
+  - '>= 0.5.3, < 0.6.0'
