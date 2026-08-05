@@ -22,6 +22,9 @@ description: |-
   
   ### Impact
   Unauthenticated remote DoS. Anything that takes a user-supplied decimal (JSON, form field, Ecto `:decimal` field — basically everywhere) and then does arithmetic, rounding, `to_integer`, or `to_string` on it is exposed. One request can kill the node with a Out-of-Memory exception.
+  
+  ### Note on the security fixes done in version 2.4.0
+  While `2.4.0` has the changes to mitigate this issue it's not considered as a patched version because it doesn't have them enabled by default.
 disclosure_date: 2026-05-12
 first_patched_versions:
   - 3.0.0
