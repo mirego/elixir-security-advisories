@@ -1,0 +1,35 @@
+---
+description: |-
+  ### Summary
+  
+  In the HTTP-to-gRPC transcoding layer of the `grpc` Hex package, query-string and request-body parameters can silently overwrite path-bound fields when building the decoded protobuf request struct. An authenticated attacker who can reach a transcoded endpoint can substitute any path-bound identifier (e.g. `user_id` from `/users/{user_id}/profile`) with an arbitrary value, bypassing authorization, multi-tenancy, and ownership checks that rely on the path-derived field.
+  
+  ### Details
+  
+  All three clauses of `GRPC.Server.Transcode.map_request/5` (`grpc_server/lib/grpc/server/transcode.ex`) use `Map.merge/2` with path bindings as the first argument, giving them the lowest merge precedence. Path bindings are extracted by the router from the matched URL template and should be the authoritative resource identifiers, but query-string and body parameters overwrite them. The decoded protobuf struct handed to the handler carries the attacker's value instead of the router's.
+  
+  ### PoC
+  
+  1. Deploy a transcoded gRPC service with a route like `GET /users/{user_id}/profile` where the handler authorizes access based on `request.user_id`.
+  2. Send: `GET /users/me/profile?user_id=victim`
+  3. The decoded request struct has `user_id = "victim"` — the authorization check passes for the victim's resource, not the caller's.
+  4. Alternatively, for a `POST` with `body: "*"`: send `{"user_id": "victim"}` in the JSON body.
+  
+  ### Impact
+  
+  Affects applications using `grpc` ≥ 0.8.0 with HTTP transcoding enabled that rely on path-bound fields for authorization or tenant isolation. Fixed in 1.0.0. An authenticated attacker can read or modify any other user's resources exposed via transcoded endpoints.
+  
+  ### References
+  
+  * Introduction commit: https://github.com/elixir-grpc/grpc/commit/8aaf3d3a8c4c7b08ac65e9c6f254e0d24da1d048
+  * Patch commit: https://github.com/elixir-grpc/grpc/commit/33b6a095dbc91c6dee3c7b90893d7d74952e82e4
+disclosure_date: 2026-08-25
+first_patched_versions:
+  - 1.0.0
+id: GHSA-mwr4-5g34-j5cq
+link: https://github.com/advisories/GHSA-mwr4-5g34-j5cq
+package: grpc
+severity: high
+title: gRPC Erlang package's path bindings are overridable by query string and request body
+vulnerable_version_ranges:
+  - '>= 0.8.0, < 1.0.0'
