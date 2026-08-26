@@ -1,0 +1,52 @@
+---
+description: |-
+  ### Summary
+  
+  AshAuthentication's OAuth2 and OIDC family strategies matched the local user by email address rather than by the OpenID Connect `iss`/`sub` claim combination. A provider login presenting a victim's email (including an unverified, reused, or `email_verified: false` account) resolved to and signed in as the victim's existing local account. An unauthenticated attacker who can register an account on any accepted OAuth provider with the victim's email obtains the victim's full local privileges.
+  
+  ### Details
+  
+  Per OpenID Connect Core §5.7, only the `iss`/`sub` claim combination uniquely and stably identifies an end-user; any other claim, including `email`, MUST NOT be used as a unique identifier. AshAuthentication's OAuth2/OIDC register flow nonetheless drove the upsert by the email field (`upsert_identity` on email, or a user-defined sign-in filter), and the sign-in preparation filtered users by email.
+  
+  **1. Provider login.** The attacker signs in to a configured OAuth/OIDC provider with the victim's email. This is trivial for providers that don't verify email ownership, and possible under email-reuse / reclamation for providers that do.
+  
+  **2. AshAuthentication register step.** `'Elixir.AshAuthentication.Strategy.OAuth2.IdentityChange':change/3` invokes the upsert action whose `upsert_identity` resolves on the email. The action lands on the victim's existing record.
+  
+  **3. Sign-in preparation.** `'Elixir.AshAuthentication.Strategy.OAuth2.SignInPreparation':prepare/3` does not verify the returned user against an `iss`/`sub` identity, so the attacker is authenticated as the victim.
+  
+  #### Configurations
+  
+  Exploitation requires one of:
+  
+  * The configured OAuth/OIDC provider does not reliably verify email ownership (lets a user register with any email, or fails to verify it). Many social/enterprise providers fall into this category, including Slack, generic OIDC deployments, and any custom OAuth2 endpoint without strict email validation.
+  * The provider allows email reclamation: the victim's email becomes available on the provider (account deletion, organisation off-boarding, mail-host change) and the attacker registers it. The attacker then signs in via that provider and takes over the local account.
+  
+  Providers that strictly verify email ownership and forbid reuse (e.g. modern Google Workspace, GitHub for accounts that have completed verification) are not directly exploitable, but applications that accept any of the affected strategy types in addition are still exposed via the weaker providers in the set.
+  
+  ### PoC
+  
+  1. On any accepted OAuth/OIDC provider, register an account whose email is the victim's email (or use a provider that allows email reuse).
+  2. Complete the standard OAuth flow against the AshAuthentication application.
+  3. The application's upsert resolves on email, signs the attacker in as the victim, and returns a session token for the victim's account.
+  
+  ### Impact
+  
+  Unauthenticated remote account takeover against any AshAuthentication-using application that exposes an OAuth2/OIDC strategy. The default configuration of every affected strategy is vulnerable; no application-level misconfiguration is required. An attacker who succeeds gains the victim's full local identity, with read, write, and destructive access to whatever the victim's account can do.
+  
+  ## References
+  
+  * Introduction commit: https://github.com/team-alembic/ash_authentication/commit/c5f589058e04239263f50a1430eb17ea6d5dd1a2
+  * Patch commit (4.x backport): https://github.com/team-alembic/ash_authentication/commit/728b8d28c1b5f465fa1116ef044a815300fc733d
+  * Patch commit (5.x): https://github.com/team-alembic/ash_authentication/commit/64530644f9b37ebb76ca14aeb83a77597a0034b7
+disclosure_date: 2026-08-25
+first_patched_versions:
+  - 5.0.0-rc.10
+  - 4.14.0
+id: GHSA-777c-2fxx-qr28
+link: https://github.com/advisories/GHSA-777c-2fxx-qr28
+package: ash_authentication
+severity: critical
+title: AshAuthentication vulnerable to OAuth2/OIDC account takeover via email-based user matching
+vulnerable_version_ranges:
+  - '>= 5.0.0-rc.0, < 5.0.0-rc.10'
+  - '>= 0.1.0, < 4.14.0'

