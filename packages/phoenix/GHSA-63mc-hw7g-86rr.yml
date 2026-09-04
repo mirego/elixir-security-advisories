@@ -1,0 +1,43 @@
+---
+description: |-
+  ### Summary
+  
+  The Phoenix JavaScript presence client (`assets/js/phoenix/presence.js`) tests whether a presence already exists using a bare truthiness check (`state[key]`) rather than an own-property check. Because applications commonly track presences under a client-supplied username or id, the presence key can be attacker-controlled. A user who joins a channel and picks a key that names an `Object.prototype` member (`__proto__`, `constructor`, `toString`, `hasOwnProperty`, and similar) makes the lookup return the inherited `Object.prototype` object instead of `undefined`, which is truthy. The code then reads `.metas.map(...)` off it and throws an uncaught `TypeError`, breaking presence sync for every viewer of that channel topic. Any authenticated channel participant can trigger it.
+  
+  ### Details
+  
+  The victim is any browser subscribed to a presence channel. When it receives the server's `presence_state` message, it invokes `Presence.syncState`, which iterates the incoming presences and checks whether each one already exists locally via `let currentPresence = state[key]`. `state` is a plain object inheriting from `Object.prototype`. For an ordinary key like `alice`, `state["alice"]` is `undefined` (falsy) and the safe path runs. For the key `__proto__` (or `constructor`, `toString`, etc.), `state["__proto__"]` does not resolve to a tracked presence but to JavaScript's built-in `Object.prototype`, which is truthy. The `if(currentPresence)` guard passes, and the code evaluates `currentPresence.metas.map(m => m.phx_ref)`. Since `Object.prototype.metas` is `undefined`, calling `.map` on it throws a `TypeError`.
+  
+  Phoenix wraps no try/catch around channel binding callbacks, so the `TypeError` propagates out of the message handler: `this.state` is never updated and `onSync()` never fires. The malicious key is tracked server-side, so it is re-pushed on every presence update and keeps re-throwing, leaving presence permanently broken until the attacker leaves. `Presence.syncDiff` uses the same unsafe `state[key]` existence-check pattern, so presence diffs fail identically.
+  
+  Two scoping points matter. The impact is per channel topic, not global: presence state is per-topic on the server and per-`Presence`-instance in the browser, so only viewers of the topic carrying the malicious key are affected. The bug is a read-time confusion of the prototype object, not prototype pollution: the crash occurs on the `state["__proto__"]` read in `syncState`, before any `state[key] = ...` write is reached, so `Object.prototype` is never mutated and nothing leaks across channels. The fix builds the state and accumulator objects with `Object.create(null)` (or a `Map`) and gates existence checks with `Object.prototype.hasOwnProperty.call(obj, key)`.
+  
+  If an application does not pass a client-controlled key to `Presence.track`, it is **not** affected.
+  
+  ### PoC
+  
+  1. Connect to an application that uses `Phoenix.Presence` and tracks presences under a client-chosen key (e.g. a username).
+  2. Join a presence channel choosing the key `__proto__` (or `constructor`, `toString`, `hasOwnProperty`).
+  3. The server tracks the presence and pushes `presence_state` / `presence_diff` to every subscriber of that topic.
+  4. Each viewer's `Presence.syncState` (or `syncDiff`) reads `state["__proto__"]`, gets the truthy `Object.prototype`, and throws an uncaught `TypeError`.
+  5. Presence sync stays broken for all viewers of the topic until the attacker leaves the channel.
+  
+  ### Impact
+  
+  An attacker with ordinary channel access can cause a persistent, stored client-side denial of service against every browser viewing a presence channel topic, freezing presence updates for all of them until the attacker disconnects. Any application driving the Phoenix JavaScript presence client with user-influenced presence keys is affected.
+disclosure_date: 2026-09-03
+first_patched_versions:
+  - 1.8.9
+  - 1.7.24
+  - 1.6.17
+  - 1.5.15
+id: GHSA-63mc-hw7g-86rr
+link: https://github.com/advisories/GHSA-63mc-hw7g-86rr
+package: phoenix
+severity: moderate
+title: 'Phoenix: Presence keys colliding with `Object.prototype` members break existence checks'
+vulnerable_version_ranges:
+  - '>= 1.8.0-rc.0, < 1.8.9'
+  - '>= 1.7.0-rc.0, < 1.7.24'
+  - '>= 1.6.0-rc.0, < 1.6.17'
+  - '>= 1.2.0-rc.0, < 1.5.15'

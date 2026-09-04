@@ -1,0 +1,25 @@
+---
+description: |-
+  ### Summary
+  
+  Phoenix transports do not limit the number of channels in a given connection, making it easy to spawn hundreds of thousands of processes over a single connection, and, eventually reaching the max processes VM limit. The solution is to limit the number of channels per transport, so an attacker needs to start new HTTP/WebSocket connections, allowing third-party services to apply rate limits and intervene more easily.
+  
+  ### Impact
+  
+  An unauthenticated remote attacker can cause a denial of service against any Phoenix app that exposes LongPoll/WebSocket transports.
+disclosure_date: 2026-09-03
+first_patched_versions:
+  - 1.8.9
+  - 1.7.24
+  - 1.6.17
+  - 1.5.15
+id: GHSA-6983-jfq8-485w
+link: https://github.com/advisories/GHSA-6983-jfq8-485w
+package: phoenix
+severity: high
+title: 'Phoenix: Unbounded channel joins per transport enables DoS over few connections'
+vulnerable_version_ranges:
+  - '>= 1.8.0-rc.0, < 1.8.9'
+  - '>= 1.7.0-rc.0, < 1.7.24'
+  - '>= 1.6.0-rc.0, < 1.6.17'
+  - '>= 0.11.0, < 1.5.15'
