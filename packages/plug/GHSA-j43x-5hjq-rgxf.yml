@@ -1,0 +1,43 @@
+---
+description: |-
+  ### Summary
+  
+  Plug's nested-parameter decoder (`Plug.Conn.Query`) parses URL-encoded keys in time quadratic in their bracket-nesting depth. Any unauthenticated remote attacker that can reach a Plug-based HTTP endpoint can pin a BEAM scheduler for minutes with a single small request.
+  
+  ### Details
+  
+  For a key like `a[a][a]...=1`, `Plug.Conn.Query.split_keys/6` (in `lib/plug/conn/query.ex`) builds an accumulator of `:binary.part` prefixes (`a`, `a[a]`, `a[a][a]`, …) that grow ~3 bytes per level. `Plug.Conn.Query.insert_keys/3` then does one `Map.put` per level keyed on that growing prefix, hashing the full byte range each time, and `Plug.Conn.Query.finalize_pointer/2` repeats the prefix-keyed walk to materialize the structure. Total cost is `O(N²)` in nesting depth.
+  
+  The same code path handles query strings, `application/x-www-form-urlencoded` bodies, and multipart field names via `Plug.Conn.Query.decode/4` and `decode_each/2`. The default `Plug.Parsers.URLENCODED` cap is 1 MB (~333,000 nesting levels), but `Plug.Parsers` accepts urlencoded payloads up to its overall body limit (20 MB by default), so an attacker can scale the per-request work well beyond the urlencoded-specific cap. The decoder shows ~4× scaling per 2× input (16k levels ≈ 195 ms on a single scheduler).
+  
+  ### PoC
+  
+  1. POST `a[a][a]...[a]=1` as `application/x-www-form-urlencoded` to any endpoint of a Plug-based app. Even at the 1 MB urlencoded-parser default the payload carries ~333,000 nesting levels; with the broader `Plug.Parsers` body limit (20 MB default) a single request can carry millions.
+  2. Launch one such request per scheduler concurrently. Each pins a scheduler for minutes; legitimate traffic stalls once all schedulers are busy.
+  
+  ### Impact
+  
+  A single low-bandwidth sender can render any internet-reachable Plug-based service (most Phoenix and standalone Elixir/Erlang web stacks) unresponsive. No credentials, specific endpoint, or prior knowledge of the application is required.
+  
+  ### References
+  
+  * Introduction commit: https://github.com/elixir-plug/plug/commit/712b875d3442c765d8d37e546ffd5ad9f8afcc55
+  * Patch commit: https://github.com/elixir-plug/plug/commit/b4aa8a0665ce2726a6d5af44467fb4f59595b107
+disclosure_date: 2026-09-23
+first_patched_versions:
+  - 1.19.3
+  - 1.18.3
+  - 1.17.2
+  - 1.16.4
+  - 1.15.5
+id: GHSA-j43x-5hjq-rgxf
+link: https://github.com/advisories/GHSA-j43x-5hjq-rgxf
+package: plug
+severity: high
+title: ' Plug: quadratic-time decoding of nested query/body parameters enables denial of service'
+vulnerable_version_ranges:
+  - '>= 1.19.0, < 1.19.3'
+  - '>= 1.18.0, < 1.18.3'
+  - '>= 1.17.0, < 1.17.2'
+  - '>= 1.16.0, < 1.16.4'
+  - '>= 1.15.0, < 1.15.5'
