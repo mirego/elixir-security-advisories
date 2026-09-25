@@ -1,0 +1,34 @@
+---
+description: |-
+  ### Summary
+  
+  Ash fails to consistently strip private action arguments (those declared with `public?: false`) when a changeset is built from an untrusted parameter map. Private arguments are meant to be set only by trusted server-side code, but a caller who controls the parameters supplied to an action can inject a value for one. Any actor able to submit parameters to an action that defines a private argument can trigger it.
+  
+  ### Details
+  
+  Private arguments (`public?: false`) are meant to be populated internally (e.g. via `Ash.Changeset.set_private_argument/3`) and never accepted from external input. When an action is invoked with a parameter map, Ash should discard keys that name a private argument. The filtering in `lib/ash/changeset/changeset.ex` is incomplete, and the gap differs across the two parameter paths.
+  
+  **1. Regular path (`for_create`, `for_update`, `for_destroy`).** `cast_params/4` validates keys via `get_action_argument/2`. Its atom-keyed clause filters on `public?`, but the binary-keyed (string) clause does not, so a string key matching a private argument name is accepted and written into `changeset.arguments`. User-supplied parameter maps are string-keyed, making this the reachable case.
+  
+  **2. Atomic / bulk path (`Ash.Changeset.fully_atomic_changeset/4`).** `atomic_params/4` gates assignment on `has_argument?/2`, whose atom and binary clauses both omit the `public?` check, so private arguments are accepted regardless of key type.
+  
+  ### PoC
+  
+  1. Define an action with a private argument, e.g. `argument :acting_user_id, :string, public?: false`, and a change that writes it into an attribute.
+  2. Build the changeset from a string-keyed map including it, e.g. `Ash.Changeset.for_create(Resource, :place, %{"item" => "book", "acting_user_id" => "victim-user-id"})`.
+  3. Observe `acting_user_id` is present in `changeset.arguments` and persisted, whereas the same map with atom keys is correctly stripped.
+  4. For the atomic path, call `Ash.Changeset.fully_atomic_changeset(Resource, :promote, %{"acting_user_id" => "victim-user-id"})` (atom or string keys) and observe the private argument is retained either way.
+  
+  ### Impact
+  
+  An attacker who can submit parameters to an action that defines a private argument can set that argument to a value of their choosing, overriding data the application intended to control server-side. Where a private argument drives authorization, identity, or record ownership (e.g. `acting_user_id`), this can lead to an integrity violation or privilege escalation.
+disclosure_date: 2026-09-24
+first_patched_versions:
+  - 3.29.3
+id: GHSA-f4hc-ppw9-4hhw
+link: https://github.com/advisories/GHSA-f4hc-ppw9-4hhw
+package: ash
+severity: moderate
+title: 'Ash: Private action arguments can be set by user input via string-keyed params and atomic changesets'
+vulnerable_version_ranges:
+  - '>= 3.0.0, < 3.29.3'
