@@ -1,0 +1,29 @@
+---
+description: |-
+  ### Details
+  When the server acts as the fee_payer, the `mpp` Elixir 0.4.0 does not validate `gas_limit`, `max_fee_per_gas` and `max_priority_fee_per_gas` before cosigning the client's fee-payer transaction. A malicious client embeds arbitrarily large `max_fee_per_gas` and `max_priority_fee_per_gas` values in the signed envelope. The server cosigns and broadcasts — paying those inflated gas costs from its own wallet based on the `effective_gas_price` calculated from the high `max_fee_per_gas` and `max_priority_fee_per_gas` set by the client.
+  
+  **Vulnerable function:** `cosign_fee_payer/3` in [`transaction.ex`](https://hex.pm/packages/mpp/0.4.0) around lines 229–262.
+  
+  ### PoC
+  The PoC is provided below. It is configured to reproduce the attack on Tempo Moderate testnet within a Docker environment. Download the PoC and run:
+  ```bash
+  unzip mpp_elixir_PoC.zip
+  cd mpp_elixir
+  docker build -t mpp-elixir-gasdrain .
+  docker run --rm mpp-elixir-gasdrain
+  ``` 
+  There are more details in `mpp_elixir/README.md`
+  
+  ### Impact
+  By draining the server's wallet, an attacker causes direct financial loss to the organization. Furthermore, if the server's funds are drained completely, legitimate clients will have their requests fail, as the server can no longer fund future transactions, effectively creating a Denial of Service (DoS) attack.
+disclosure_date: 2026-09-25
+first_patched_versions:
+  - 0.6.0
+id: GHSA-vv77-66rf-pm86
+link: https://github.com/advisories/GHSA-vv77-66rf-pm86
+package: mpp
+severity: high
+title: mpp vulnerable to Gas Draining with no limit
+vulnerable_version_ranges:
+  - '>= 0.2.0, < 0.6.0'

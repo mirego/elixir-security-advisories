@@ -1,0 +1,45 @@
+---
+description: |-
+  ## Vulnerability
+  When the server acts as the fee payer, `mpp` Elixir 0.4.0 (ZenHive/mpp) does not validate whether the `gas_limit` set by the client is enough before broadcasting. A malicious client can drain the server's gas without paying.
+  
+  A `transferWithMemo` call on Tempo Moderato testnet requires **~51,299 gas** to complete successfully. By setting `gas_limit = 51,298`:
+  
+  1. The Tx gets cosigned and broadcast by the server.
+  2. The Tx runs out of gas during EVM execution. All state reverts.
+  3. The server's fee-payer wallet is charged for gas used.
+  4. The client pays nothing and receives no resource.
+  
+  ```bash
+  # Run the PoC
+  unzip mpp_elixir_low_gas_PoC.zip
+  cd mpp_elixir_low_gas_PoC
+  docker build -t mpp-elixir-low-gas .
+  docker run --rm mpp-elixir-low-gas
+  ```
+  
+  **Zero-Cost DoS Attack:** Unlike gas draining with `access list` or `padding`, where the malicious client needs to complete a payment to drain the gas, this vulnerability allows malicious users to continuously drain the server's gas at virtually no financial cost (requiring only computing power). Therefore, an attacker can spawn *N* malicious clients to completely drain the funds from the server's wallet to perform a Denial of Service (DoS) attack. Once the server's wallet is empty, it has no more funds to pay the gas fees for upcoming requests from legitimate clients. 
+  
+  ```bash
+  # Run the DoS PoC
+  unzip mpp_elixir_low_gas_dos_PoC.zip
+  cd mpp_elixir_low_gas_dos_PoC
+  docker build -t mpp-elixir-dos .
+  docker run --rm mpp-elixir-dos
+  ```
+  
+  **Vulnerable code path:** `broadcast_and_verify/7` in `mpp/methods/tempo.ex` (ZenHive/mpp 0.4.0).
+  When `wait_for_confirmation = true` (the default), it calls `rpc_broadcast_sync` directly without any gas-adequacy check or simulation. The alternative `wait_for_confirmation = false` path does call `simulate_payment_call` via `eth_call`, but that simulation omits the `gas` parameter and therefore does not catch out-of-gas conditions.
+  
+  ## Impact
+  A malicious client can drain the server's wallet without any financial cost.
+disclosure_date: 2026-09-25
+first_patched_versions:
+  - 0.6.0
+id: GHSA-vj8p-hp9x-gh47
+link: https://github.com/advisories/GHSA-vj8p-hp9x-gh47
+package: mpp
+severity: high
+title: mpp vulnerable to Gas Draining with low gas limit
+vulnerable_version_ranges:
+  - '>= 0.2.0, < 0.6.0'

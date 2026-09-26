@@ -1,0 +1,33 @@
+---
+description: |-
+  ### Details
+  When the server acts as the fee_payer, `mpp` Elixir 0.4.0 copies the client-supplied EIP-2930 access list verbatim into the cosigned fee-payer transaction. In `cosign_fee_payer`, the server re-signs the raw `base_fields` (index 5 of the 0x76 AASigned envelope) without inspecting the access list field, which is part of the signed payload.
+  
+  Access list gas is charged **intrinsically** — before any opcode executes — regardless of whether the listed addresses are ever touched.
+  
+  An attacker submits a valid `transferWithMemo` alongside fabricated address-only access list entries. The server validates calldata and amount but never inspects `access_list` length. It cosigns and broadcasts a transaction that costs the fee-payer wallet `N × 2,400` extra gas per request with no corresponding work performed on-chain.
+  
+  At the default of 137 entries and 100 Gwei `max_fee_per_gas`, this inflates the fee-payer cost from the normal ~51,287 gas to ~380,087 gas — a **7.4× multiplier** — while staying within Bandit's default 10,000-byte per-header-field limit (verified empirically).
+  
+  ### PoC
+  The PoC is provided below. It is configured to reproduce the attack on Tempo Moderate testnet within a Docker environment. Download the PoC and run:
+  ```bash
+  unzip mpp_elixir_PoC.zip
+  cd mpp_elixir
+  docker build -t mpp-elixir-access-list .
+  docker run --rm mpp-elixir-access-list
+  ``` 
+  There are more details in `mpp_elixir/README.md`
+  
+  ### Impact
+  A malicious client can force the server to pay ~**7.4x** the normal transaction fee. This dramatically increases operational costs and completely destroys the profit margin on low-cost items.
+disclosure_date: 2026-09-25
+first_patched_versions:
+  - 0.6.0
+id: GHSA-qpxh-ff8m-c62v
+link: https://github.com/advisories/GHSA-qpxh-ff8m-c62v
+package: mpp
+severity: moderate
+title: mpp vulnerable to Gas Draining with access list
+vulnerable_version_ranges:
+  - '>= 0.2.0, < 0.6.0'
