@@ -1,0 +1,37 @@
+---
+description: |-
+  ### Summary
+  
+  `Swoosh.Adapters.MsGraph` builds its Microsoft Graph API request URL by interpolating the sender's email address directly into the URL path (`/users/{from}/sendMail`) without percent-encoding or validation. In applications that derive the `from` address from untrusted or user-influenced input (a relay, a contact form, or a "send as" feature), an attacker can inject URL-special characters into the local part of the address to escape the intended path segment and rewrite the request's path and query string. Because the rewritten request is still sent as the application's authenticated `POST` with its Microsoft Graph bearer token, the attacker can redirect it to other Graph endpoints within the token's scopes.
+  
+  ### Details
+  
+  The flaw is in `lib/swoosh/adapters/ms_graph.ex`. `api_endpoint_url/2` constructs the Graph endpoint by interpolating the email's `from` address into the path `/users/{from}/sendMail`. The `from` value is taken verbatim from the email struct and is neither percent-encoded nor validated against the RFC 5321 character set before being placed into the URL. `deliver/2` then issues an authenticated `POST` to that constructed URL using the application's Graph bearer token.
+  
+  Because the address sits as the local part of `/users/{from}/sendMail`, characters such as `/`, `?`, and `#` are not neutralized. A `/` lets the attacker append or replace additional path segments, a `?` starts an attacker-controlled query string, and `#` truncates the remainder of the intended path. The result is that the authenticated request can be steered to a different Graph endpoint or carry attacker-chosen query parameters, all under the token's existing scopes. Applications that always send with a fixed, trusted `from` address never reach the injectable path and are unaffected.
+  
+  ### PoC
+  
+  1. Configure an application to use `Swoosh.Adapters.MsGraph` and derive the email `from` address from user-influenced input (e.g. a contact form's reply address or a "send as" field).
+  2. Submit a `from` address whose local part contains URL-special characters, for example one using `/`, `?`, or `#` to escape the `/users/{from}/sendMail` path segment.
+  3. Trigger delivery; Swoosh interpolates the address unencoded and sends the application's authenticated Graph `POST` to the attacker-rewritten path and query string.
+  
+  ### Impact
+  
+  An attacker who can influence the sender address can redirect an application's authenticated Microsoft Graph requests to other endpoints within the bearer token's scopes and control the request's query string, turning the mail-sending path into a constrained server-side request forgery against the Graph API.
+  
+  ### References
+  
+  * Introduction commit: https://github.com/swoosh/swoosh/commit/23bfcdab71aee4613858ba6d116bb3311b72aa58
+  * Patch commit: https://github.com/swoosh/swoosh/commit/e38235453e81d1727bfc8d91e69ec4cb211ccf61
+  * Affected adapter source: https://github.com/swoosh/swoosh/blob/master/lib/swoosh/adapters/ms_graph.ex
+disclosure_date: 2026-10-16
+first_patched_versions:
+  - 1.26.3
+id: GHSA-754j-98wh-57rf
+link: https://github.com/advisories/GHSA-754j-98wh-57rf
+package: swoosh
+severity: low
+title: swoosh has email-derived URL path injection in Microsoft Graph endpoint
+vulnerable_version_ranges:
+  - '>= 1.12.0, < 1.26.3'
