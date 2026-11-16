@@ -10,7 +10,7 @@ defmodule ElixirSecurityAdvisories.Dump do
 
   def dump({:ok, nodes}) do
     nodes
-    |> Enum.group_by(& &1["advisory"]["ghsaId"])
+    |> Enum.group_by(&{&1["advisory"]["ghsaId"], &1["package"]["name"]})
     |> Enum.map(&map_vulnerabilities_to_advisories/1)
     |> tap(fn _ -> File.rm_rf!(@directory) end)
     |> Enum.map(&map_advisory_to_file/1)
